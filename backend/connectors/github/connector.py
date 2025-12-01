@@ -70,9 +70,28 @@ class GitHubConnector:
                         ).first()
 
                         if not existing:
+                            # Get list of changed files
+                            try:
+                                files_changed = [f.filename for f in pr.get_files()][:20]  # Limit to first 20 files
+                            except:
+                                files_changed = []
+
+                            # Get review info
+                            try:
+                                reviews = list(pr.get_reviews())
+                                reviewers = list(set([r.user.login for r in reviews if r.user]))
+                                review_states = [r.state for r in reviews]
+                                approved_count = review_states.count('APPROVED')
+                                changes_requested_count = review_states.count('CHANGES_REQUESTED')
+                            except:
+                                reviewers = []
+                                approved_count = 0
+                                changes_requested_count = 0
+
                             description = {
                                 "text": pr.body or "",
                                 "labels": [label.name for label in pr.labels],
+                                "files_changed": files_changed,
                                 "related_events": []
                             }
 
@@ -93,6 +112,13 @@ class GitHubConnector:
                                     "additions": pr.additions,
                                     "deletions": pr.deletions,
                                     "changed_files": pr.changed_files,
+                                    "base_branch": pr.base.ref,
+                                    "head_branch": pr.head.ref,
+                                    "reviewers": reviewers,
+                                    "approved_count": approved_count,
+                                    "changes_requested_count": changes_requested_count,
+                                    "comments": pr.comments,
+                                    "review_comments": pr.review_comments,
                                 }
                             )
                             db.add(db_event)
@@ -224,9 +250,28 @@ def sync_github(db_session, config: Dict[str, Any], connection_id: int) -> Dict[
                         ).first()
 
                         if not existing:
+                            # Get list of changed files
+                            try:
+                                files_changed = [f.filename for f in pr.get_files()][:20]  # Limit to first 20 files
+                            except:
+                                files_changed = []
+
+                            # Get review info
+                            try:
+                                reviews = list(pr.get_reviews())
+                                reviewers = list(set([r.user.login for r in reviews if r.user]))
+                                review_states = [r.state for r in reviews]
+                                approved_count = review_states.count('APPROVED')
+                                changes_requested_count = review_states.count('CHANGES_REQUESTED')
+                            except:
+                                reviewers = []
+                                approved_count = 0
+                                changes_requested_count = 0
+
                             description = {
                                 "text": pr.body or "",
                                 "labels": [label.name for label in pr.labels],
+                                "files_changed": files_changed,
                                 "related_events": []
                             }
 
@@ -248,6 +293,13 @@ def sync_github(db_session, config: Dict[str, Any], connection_id: int) -> Dict[
                                     "additions": pr.additions,
                                     "deletions": pr.deletions,
                                     "changed_files": pr.changed_files,
+                                    "base_branch": pr.base.ref,
+                                    "head_branch": pr.head.ref,
+                                    "reviewers": reviewers,
+                                    "approved_count": approved_count,
+                                    "changes_requested_count": changes_requested_count,
+                                    "comments": pr.comments,
+                                    "review_comments": pr.review_comments,
                                 }
                             )
                             db_session.add(db_event)
@@ -308,9 +360,16 @@ def sync_github(db_session, config: Dict[str, Any], connection_id: int) -> Dict[
                                     ).first()
 
                                     if not existing:
+                                        # Get list of changed files for commit
+                                        try:
+                                            files_changed = [f.filename for f in commit.files][:20]  # Limit to first 20 files
+                                        except:
+                                            files_changed = []
+
                                         description = {
                                             "text": commit.commit.message,
                                             "labels": [],
+                                            "files_changed": files_changed,
                                             "related_events": []
                                         }
 
