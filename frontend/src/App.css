@@ -472,6 +472,14 @@
   flex-wrap: wrap;
 }
 
+.tags-label {
+  font-size: 0.85em;
+  color: #808080;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .event-tags .label-tag {
   font-size: 0.75em;
   padding: 4px 10px;

@@ -757,6 +757,7 @@ function Dashboard() {
 
                           return (
                             <div className="event-tags">
+                              <span className="tags-label">Tags:</span>
                               {(tagsExpanded ? tags : tags.slice(0, maxVisibleTags)).map((tag, idx) => (
                                 <span key={idx} className="label-tag">{tag}</span>
                               ))}
