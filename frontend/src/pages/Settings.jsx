@@ -11,7 +11,6 @@ const connectorLogos = {
 
 const CONNECTOR_TYPES = [
   { id: 'github', name: 'GitHub' },
-  { id: 'jira', name: 'Jira' },
   { id: 'gitlab', name: 'GitLab' },
 ]
 
