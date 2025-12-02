@@ -545,6 +545,159 @@
   font-weight: 600;
 }
 
+.change-details h5 {
+  font-size: 0.85em;
+  color: #808080;
+  margin-bottom: 10px;
+  margin-top: 16px;
+  font-weight: 600;
+}
+
+/* Enriched Data Sections */
+.enriched-section {
+  margin-bottom: 20px;
+}
+
+.enriched-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.enriched-item {
+  display: flex;
+  gap: 8px;
+  font-size: 0.9em;
+  align-items: baseline;
+}
+
+.enriched-key {
+  color: #808080;
+  font-weight: 500;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+.enriched-value {
+  color: #e6e6e6;
+  flex: 1;
+}
+
+/* Lists (files, jobs, assets) */
+.list-section {
+  margin-top: 16px;
+}
+
+.items-list {
+  background: rgba(15, 20, 25, 0.5);
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.item-entry {
+  padding: 6px 8px;
+  font-size: 0.85em;
+  color: #b0b0b0;
+  font-family: 'Monaco', 'Courier New', monospace;
+  border-bottom: 1px solid rgba(42, 49, 66, 0.3);
+}
+
+.item-entry:last-child {
+  border-bottom: none;
+}
+
+/* Workflow Job Items */
+.job-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(42, 49, 66, 0.3);
+}
+
+.job-item:last-child {
+  border-bottom: none;
+}
+
+.job-name {
+  font-size: 0.9em;
+  color: #e6e6e6;
+  flex: 1;
+}
+
+.job-status {
+  font-size: 0.85em;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(248, 81, 73, 0.1);
+}
+
+/* Files Changed Section */
+.files-changed {
+  margin-top: 16px;
+}
+
+.files-list {
+  background: rgba(15, 20, 25, 0.5);
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.file-item {
+  padding: 6px 8px;
+  font-size: 0.85em;
+  color: #b0b0b0;
+  font-family: 'Monaco', 'Courier New', monospace;
+  border-bottom: 1px solid rgba(42, 49, 66, 0.3);
+}
+
+.file-item:last-child {
+  border-bottom: none;
+}
+
+/* Failed Jobs Section */
+.failed-jobs {
+  margin-top: 16px;
+}
+
+.jobs-list {
+  background: rgba(15, 20, 25, 0.5);
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+/* Labels Section */
+.labels-section {
+  margin-top: 16px;
+}
+
+.labels-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.label-tag {
+  background: rgba(0, 232, 160, 0.1);
+  color: #00E8A0;
+  border: 1px solid rgba(0, 232, 160, 0.3);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+/* Legacy Metadata (fallback) */
 .metadata-section {
   margin-bottom: 16px;
 }
@@ -569,26 +722,6 @@
 
 .metadata-value {
   color: #e6e6e6;
-}
-
-.labels-section {
-  margin-top: 16px;
-}
-
-.labels-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.label-tag {
-  background: rgba(0, 232, 160, 0.1);
-  color: #00E8A0;
-  border: 1px solid rgba(0, 232, 160, 0.3);
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 0.85em;
-  font-weight: 500;
 }
 
 /* Loading and empty states */
@@ -670,6 +803,14 @@
 
   .metadata-grid {
     grid-template-columns: 1fr;
+  }
+
+  .enriched-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .enriched-key {
+    min-width: 100px;
   }
 
   .correlation-tooltip {

@@ -8,6 +8,281 @@ const connectorLogos = {
   github: githubLogo,
 }
 
+/**
+ * Extensible event type configuration
+ *
+ * To add a new event type (e.g., Kubernetes Deployment, Terraform, MR):
+ *
+ * 1. Add a new entry to EVENT_TYPE_CONFIG with:
+ *    - titleMatch: String to identify this event type in the title
+ *    - sections: Array of section objects, each with:
+ *      - title: Section heading
+ *      - fields: Array of field objects with:
+ *        - key: Unique identifier
+ *        - label: Display label
+ *        - value: Function that extracts/formats the value from event
+ *      - lists: (Optional) Array of list objects for collections like files, with:
+ *        - key: Unique identifier
+ *        - title: List heading
+ *        - getValue: Function to extract array from event
+ *        - maxVisible: (Optional) Max items before "...and N more"
+ *        - renderItem: (Optional) Custom render function for each item
+ *
+ * Example for Kubernetes Deployment:
+ * 'K8sDeployment': {
+ *   titleMatch: '[K8s Deploy]',
+ *   sections: [{
+ *     title: 'Deployment Details',
+ *     fields: [
+ *       { key: 'namespace', label: 'Namespace', value: (e) => e.metadata?.namespace },
+ *       { key: 'replicas', label: 'Replicas', value: (e) => `${e.metadata?.desired} desired, ${e.metadata?.ready} ready` }
+ *     ],
+ *     lists: [{
+ *       key: 'containers',
+ *       title: 'Containers',
+ *       getValue: (e) => e.description?.containers,
+ *       renderItem: (c, i) => <div key={i}>{c.name}:{c.image}</div>
+ *     }]
+ *   }]
+ * }
+ */
+const EVENT_TYPE_CONFIG = {
+  'PR': {
+    titleMatch: '[PR]',
+    sections: [
+      {
+        title: 'Pull Request Details',
+        fields: [
+          {
+            key: 'branches',
+            label: 'Branch',
+            value: (event) => event.metadata?.head_branch && event.metadata?.base_branch
+              ? `${event.metadata.head_branch} → ${event.metadata.base_branch}`
+              : null
+          },
+          {
+            key: 'changes',
+            label: 'Changes',
+            value: (event) => {
+              const { additions, deletions, changed_files } = event.metadata || {}
+              if (additions === undefined) return null
+              return {
+                type: 'html',
+                content: (
+                  <>
+                    <span style={{ color: '#3fb950' }}>+{additions}</span>
+                    {' / '}
+                    <span style={{ color: '#f85149' }}>-{deletions}</span>
+                    {' in '}{changed_files} {changed_files === 1 ? 'file' : 'files'}
+                  </>
+                )
+              }
+            }
+          },
+          {
+            key: 'reviewers',
+            label: 'Reviewers',
+            value: (event) => event.metadata?.reviewers?.length > 0
+              ? event.metadata.reviewers.join(', ')
+              : null
+          },
+          {
+            key: 'approvals',
+            label: 'Approvals',
+            value: (event) => event.metadata?.approved_count > 0
+              ? { type: 'html', content: <span style={{ color: '#3fb950' }}>✓ {event.metadata.approved_count}</span> }
+              : null
+          },
+          {
+            key: 'changes_requested',
+            label: 'Changes Requested',
+            value: (event) => event.metadata?.changes_requested_count > 0
+              ? { type: 'html', content: <span style={{ color: '#f85149' }}>{event.metadata.changes_requested_count}</span> }
+              : null
+          },
+          {
+            key: 'comments',
+            label: 'Comments',
+            value: (event) => (event.metadata?.comments > 0 || event.metadata?.review_comments > 0)
+              ? `${event.metadata.comments} general, ${event.metadata.review_comments} review`
+              : null
+          },
+          {
+            key: 'merged',
+            label: 'Status',
+            value: (event) => event.metadata?.merged !== undefined
+              ? { type: 'html', content: <span style={{ color: event.metadata.merged ? '#a371f7' : '#808080' }}>{event.metadata.merged ? '✓ Merged' : 'Not merged'}</span> }
+              : null
+          }
+        ],
+        lists: [
+          {
+            key: 'files_changed',
+            title: 'Files Changed',
+            getValue: (event) => event.description?.files_changed,
+            maxVisible: 10
+          }
+        ]
+      }
+    ]
+  },
+  'Workflow': {
+    titleMatch: '[Workflow]',
+    sections: [
+      {
+        title: 'Workflow Details',
+        fields: [
+          {
+            key: 'status',
+            label: 'Status',
+            value: (event) => {
+              const conclusion = event.metadata?.conclusion
+              if (!conclusion) return null
+              const color = conclusion === 'success' ? '#3fb950' : conclusion === 'failure' ? '#f85149' : '#808080'
+              const icon = conclusion === 'success' ? '✓ ' : conclusion === 'failure' ? '✗ ' : ''
+              return { type: 'html', content: <span style={{ color }}>{icon}{conclusion}</span> }
+            }
+          },
+          {
+            key: 'duration',
+            label: 'Duration',
+            value: (event) => {
+              const seconds = event.metadata?.duration_seconds
+              if (seconds === undefined) return null
+              const mins = Math.floor(seconds / 60)
+              const secs = Math.floor(seconds % 60)
+              return `${mins}m ${secs}s`
+            }
+          },
+          {
+            key: 'branch',
+            label: 'Branch',
+            value: (event) => event.metadata?.branch || null
+          },
+          {
+            key: 'commit',
+            label: 'Commit',
+            value: (event) => event.metadata?.commit_sha || null
+          },
+          {
+            key: 'trigger',
+            label: 'Triggered by',
+            value: (event) => event.metadata?.event || null
+          },
+          {
+            key: 'run_number',
+            label: 'Run',
+            value: (event) => event.metadata?.run_number ? `#${event.metadata.run_number}` : null
+          },
+          {
+            key: 'failed_jobs',
+            label: 'Failed Jobs',
+            value: (event) => event.metadata?.failed_jobs_count > 0
+              ? { type: 'html', content: <span style={{ color: '#f85149' }}>{event.metadata.failed_jobs_count}</span> }
+              : null
+          }
+        ],
+        lists: [
+          {
+            key: 'failed_jobs_detail',
+            title: 'Failed Jobs',
+            getValue: (event) => event.description?.failed_jobs,
+            renderItem: (job, idx) => (
+              <div key={idx} className="job-item">
+                <span className="job-name">{job.name}</span>
+                <span className="job-status" style={{ color: '#f85149' }}>{job.conclusion}</span>
+              </div>
+            )
+          }
+        ]
+      }
+    ]
+  },
+  'Commit': {
+    titleMatch: '[Commit]',
+    sections: [
+      {
+        title: 'Commit Details',
+        fields: [
+          {
+            key: 'branch',
+            label: 'Branch',
+            value: (event) => event.metadata?.branch || null
+          },
+          {
+            key: 'sha',
+            label: 'SHA',
+            value: (event) => event.metadata?.sha?.substring(0, 7) || null
+          },
+          {
+            key: 'changes',
+            label: 'Changes',
+            value: (event) => {
+              const { additions, deletions } = event.metadata || {}
+              if (additions === undefined) return null
+              return {
+                type: 'html',
+                content: (
+                  <>
+                    <span style={{ color: '#3fb950' }}>+{additions}</span>
+                    {' / '}
+                    <span style={{ color: '#f85149' }}>-{deletions}</span>
+                  </>
+                )
+              }
+            }
+          }
+        ],
+        lists: [
+          {
+            key: 'files_changed',
+            title: 'Files Changed',
+            getValue: (event) => event.description?.files_changed,
+            maxVisible: 10
+          }
+        ]
+      }
+    ]
+  },
+  'Release': {
+    titleMatch: '[Release]',
+    sections: [
+      {
+        title: 'Release Details',
+        fields: [
+          {
+            key: 'tag',
+            label: 'Tag',
+            value: (event) => event.metadata?.tag_name || null
+          },
+          {
+            key: 'prerelease',
+            label: 'Pre-release',
+            value: (event) => event.metadata?.prerelease !== undefined
+              ? (event.metadata.prerelease ? 'Yes' : 'No')
+              : null
+          },
+          {
+            key: 'draft',
+            label: 'Draft',
+            value: (event) => event.metadata?.draft !== undefined
+              ? (event.metadata.draft ? 'Yes' : 'No')
+              : null
+          }
+        ],
+        lists: [
+          {
+            key: 'assets',
+            title: 'Assets',
+            getValue: (event) => event.description?.assets,
+            maxVisible: 10
+          }
+        ]
+      }
+    ]
+  }
+}
+
 function Dashboard() {
   const navigate = useNavigate()
   const [changes, setChanges] = useState([])
@@ -271,6 +546,87 @@ function Dashboard() {
     }
   }
 
+  const getEventTypeConfig = (event) => {
+    for (const config of Object.values(EVENT_TYPE_CONFIG)) {
+      if (event.title?.includes(config.titleMatch)) {
+        return config
+      }
+    }
+    return null
+  }
+
+  const renderEnrichedData = (event) => {
+    const config = getEventTypeConfig(event)
+    if (!config) return null
+
+    return (
+      <div className="change-details">
+        {config.sections.map((section, sectionIdx) => (
+          <div key={sectionIdx} className="enriched-section">
+            <h4>{section.title}</h4>
+
+            {/* Render fields */}
+            <div className="enriched-grid">
+              {section.fields.map((field) => {
+                const fieldValue = field.value(event)
+                if (!fieldValue) return null
+
+                return (
+                  <div key={field.key} className="enriched-item">
+                    <span className="enriched-key">{field.label}:</span>
+                    <span className="enriched-value">
+                      {fieldValue.type === 'html' ? fieldValue.content : fieldValue}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Render lists */}
+            {section.lists?.map((list) => {
+              const items = list.getValue(event)
+              if (!items || items.length === 0) return null
+
+              return (
+                <div key={list.key} className="list-section">
+                  <h5>{list.title} ({items.length})</h5>
+                  <div className="items-list">
+                    {list.renderItem ? (
+                      items.map((item, idx) => list.renderItem(item, idx))
+                    ) : (
+                      <>
+                        {items.slice(0, list.maxVisible || items.length).map((item, idx) => (
+                          <div key={idx} className="item-entry">{item}</div>
+                        ))}
+                        {list.maxVisible && items.length > list.maxVisible && (
+                          <div className="item-entry" style={{ fontStyle: 'italic', color: '#808080' }}>
+                            ...and {items.length - list.maxVisible} more
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ))}
+
+        {/* Labels (common to all types) */}
+        {event.description?.labels && event.description.labels.length > 0 && (
+          <div className="labels-section">
+            <h4>Labels</h4>
+            <div className="labels-list">
+              {event.description.labels.map((label, idx) => (
+                <span key={idx} className="label-tag">{label}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="content">
       {error && (
@@ -388,35 +744,7 @@ function Dashboard() {
                       </div>
                     )}
 
-                    {isExpanded && (
-                      <div className="change-details">
-                        {change.metadata && (
-                          <div className="metadata-section">
-                            <h4>Metadata</h4>
-                            <div className="metadata-grid">
-                              {Object.entries(change.metadata).map(([key, value]) => (
-                                <div key={key} className="metadata-item">
-                                  <span className="metadata-key">{key}:</span>
-                                  <span className="metadata-value">
-                                    {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {change.description?.labels && change.description.labels.length > 0 && (
-                          <div className="labels-section">
-                            <h4>Labels</h4>
-                            <div className="labels-list">
-                              {change.description.labels.map((label, idx) => (
-                                <span key={idx} className="label-tag">{label}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    {isExpanded && renderEnrichedData(change)}
 
                     <div className="change-footer">
                       <div className="footer-left">
