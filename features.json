@@ -6,7 +6,11 @@
       "version": "0.1.0"
     },
     "github_connector": {
-      "description": "Polls GitHub repositories for pull requests and releases",
+      "description": "Polls GitHub repositories for pull requests, releases, and workflow runs",
+      "version": "0.1.0"
+    },
+    "gitlab_connector": {
+      "description": "Polls GitLab projects for merge requests, releases, and pipeline runs",
       "version": "0.1.0"
     },
     "configurable_polling": {
