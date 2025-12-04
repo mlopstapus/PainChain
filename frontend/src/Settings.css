@@ -678,3 +678,65 @@
 .toggle-inline-header:hover .toggle-slider-inline {
   border-color: #00E8A0;
 }
+
+/* Field Visibility Section */
+.section-description {
+  color: #808080;
+  font-size: 0.9em;
+  margin-bottom: 20px;
+  margin-top: -8px;
+}
+
+.field-visibility-grid {
+  display: grid;
+  gap: 24px;
+}
+
+.event-type-section {
+  background: #0f1419;
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.event-type-title {
+  font-size: 0.95em;
+  color: #00E8A0;
+  margin: 0 0 12px 0;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.field-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.field-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  color: #e6e6e6;
+  font-size: 0.9em;
+}
+
+.field-checkbox-label:hover {
+  background: rgba(0, 232, 160, 0.05);
+}
+
+.field-checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #00E8A0;
+}
+
+.field-checkbox-label span {
+  user-select: none;
+}

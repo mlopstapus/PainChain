@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import githubLogo from '../assets/logos/github.svg'
 import DateTimePicker from '../components/DateTimePicker'
+import { isFieldVisible } from '../utils/fieldVisibility'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -693,17 +694,19 @@ function Dashboard() {
   }
 
   const getEventTypeConfig = (event) => {
-    for (const config of Object.values(EVENT_TYPE_CONFIG)) {
+    for (const [eventType, config] of Object.entries(EVENT_TYPE_CONFIG)) {
       if (event.title?.includes(config.titleMatch)) {
-        return config
+        return { eventType, config }
       }
     }
     return null
   }
 
   const renderEnrichedData = (event) => {
-    const config = getEventTypeConfig(event)
-    if (!config) return null
+    const result = getEventTypeConfig(event)
+    if (!result) return null
+
+    const { eventType, config } = result
 
     return (
       <div className="change-details">
@@ -714,6 +717,9 @@ function Dashboard() {
             {/* Render fields */}
             <div className="enriched-grid">
               {section.fields.map((field) => {
+                // Check field visibility
+                if (!isFieldVisible(eventType, field.key)) return null
+
                 const fieldValue = field.value(event)
                 if (!fieldValue) return null
 
@@ -730,6 +736,9 @@ function Dashboard() {
 
             {/* Render lists */}
             {section.lists?.map((list) => {
+              // Check list visibility
+              if (!isFieldVisible(eventType, list.key)) return null
+
               const items = list.getValue(event)
               if (!items || items.length === 0) return null
 

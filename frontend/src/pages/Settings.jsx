@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import '../Settings.css'
 import githubLogo from '../assets/logos/github.svg'
+import { getFieldVisibility, toggleField, resetToDefaults, FIELD_LABELS, EVENT_TYPE_NAMES } from '../utils/fieldVisibility'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -13,6 +14,12 @@ const CONNECTOR_TYPES = [
   { id: 'github', name: 'GitHub' },
   { id: 'gitlab', name: 'GitLab' },
 ]
+
+// Map connector types to their event types
+const CONNECTOR_EVENT_TYPES = {
+  github: ['PR', 'Workflow', 'Commit', 'Release'],
+  gitlab: ['MR', 'Pipeline', 'Commit', 'Release']
+}
 
 function Settings() {
   const navigate = useNavigate()
@@ -39,6 +46,7 @@ function Settings() {
     name: '',
     tags: ''
   })
+  const [fieldVisibility, setFieldVisibility] = useState(getFieldVisibility())
 
   useEffect(() => {
     if (activeMenu === 'connections') {
@@ -536,6 +544,36 @@ function Settings() {
                   <span className="form-help">Comma-separated tags for filtering events by team.</span>
                 </div>
               </div>
+
+              {!creatingNew && selectedConnection && (
+                <div className="config-section">
+                  <h4>Field Visibility</h4>
+                  <p className="section-description">Customize which fields appear when expanding events from this connector type</p>
+                  <div className="field-visibility-grid">
+                    {CONNECTOR_EVENT_TYPES[selectedConnection.type]?.map((eventType) => (
+                      <div key={eventType} className="event-type-section">
+                        <h5 className="event-type-title">{EVENT_TYPE_NAMES[eventType]}</h5>
+                        <div className="field-checkboxes">
+                          {Object.keys(FIELD_LABELS[eventType] || {}).map((fieldKey) => (
+                            <label key={fieldKey} className="field-checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={fieldVisibility[eventType]?.[fieldKey] !== false}
+                                onChange={() => {
+                                  const newVisibility = toggleField(eventType, fieldKey)
+                                  setFieldVisibility(newVisibility)
+                                }}
+                              />
+                              <span>{FIELD_LABELS[eventType][fieldKey]}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="detail-footer">
                 <button
                   className="btn-save"
