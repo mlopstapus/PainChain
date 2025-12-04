@@ -168,32 +168,33 @@
 }
 
 .filters {
-  display: flex;
-  gap: 20px;
   margin-bottom: 40px;
   background: #1a1f2e;
-  padding: 24px;
+  padding: 28px;
   border-radius: 12px;
   border: 1px solid #2a3142;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+  align-items: end;
 }
 
 .filter-group {
   display: flex;
-  gap: 12px;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .filter-group label {
-  font-weight: 500;
+  font-weight: 600;
   color: #00E8A0;
-  font-size: 0.9em;
+  font-size: 0.75em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
 }
 
 .filter-group select {
-  padding: 10px 32px 10px 16px;
+  padding: 11px 16px;
   background: #0f1419;
   border: 1px solid #2a3142;
   border-radius: 8px;
@@ -201,38 +202,47 @@
   color: #e6e6e6;
   cursor: pointer;
   transition: all 0.2s;
+  font-family: inherit;
   appearance: none;
+  padding-right: 36px;
   background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2300E8A0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 12px center;
+  background-position: right 14px center;
 }
 
 .filter-group select:hover {
   border-color: #00E8A0;
+  background: #14191f;
 }
 
 .filter-group select:focus {
   outline: none;
   border-color: #00E8A0;
+  box-shadow: 0 0 0 3px rgba(0, 232, 160, 0.1);
 }
 
 .refresh-btn {
-  padding: 10px 24px;
+  padding: 11px 24px;
   background-color: #00E8A0;
   color: #0f1419;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
-  margin-left: auto;
   transition: all 0.2s;
   font-size: 14px;
+  height: fit-content;
+  white-space: nowrap;
 }
 
 .refresh-btn:hover {
   background-color: #00ffb3;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 232, 160, 0.3);
+}
+
+.refresh-btn:active {
+  transform: translateY(0);
 }
 
 .changes-list {
@@ -783,12 +793,9 @@
   }
 
   .filters {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .refresh-btn {
-    margin-left: 0;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 20px;
   }
 
   .stat-card {

@@ -66,6 +66,10 @@ async def health():
 async def get_changes(
     source: Optional[str] = None,
     status: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    team_id: Optional[int] = None,
+    tag: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db)
@@ -78,6 +82,52 @@ async def get_changes(
 
     if status:
         query = query.filter(ChangeEvent.status == status)
+
+    if start_date:
+        from datetime import datetime
+        start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        query = query.filter(ChangeEvent.timestamp >= start_dt)
+
+    if end_date:
+        from datetime import datetime
+        end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        query = query.filter(ChangeEvent.timestamp <= end_dt)
+
+    # Filter by team - events must have a tag that the team subscribes to
+    if team_id:
+        team = db.query(Team).filter(Team.id == team_id).first()
+        if team and team.tags:
+            # Get all connections that have at least one tag the team subscribes to
+            connections = db.query(Connection).all()
+            matching_connection_ids = []
+            for conn in connections:
+                if conn.tags:
+                    conn_tags = [t.strip() for t in conn.tags.split(',') if t.strip()]
+                    # Check if any team tag matches any connection tag
+                    if any(team_tag in conn_tags for team_tag in team.tags):
+                        matching_connection_ids.append(conn.id)
+
+            if matching_connection_ids:
+                query = query.filter(ChangeEvent.connection_id.in_(matching_connection_ids))
+            else:
+                # No matching connections, return empty
+                return []
+
+    # Filter by tag - events must be from a connection with this tag
+    if tag:
+        connections = db.query(Connection).all()
+        matching_connection_ids = []
+        for conn in connections:
+            if conn.tags:
+                conn_tags = [t.strip() for t in conn.tags.split(',') if t.strip()]
+                if tag in conn_tags:
+                    matching_connection_ids.append(conn.id)
+
+        if matching_connection_ids:
+            query = query.filter(ChangeEvent.connection_id.in_(matching_connection_ids))
+        else:
+            # No matching connections, return empty
+            return []
 
     events = query.order_by(ChangeEvent.timestamp.desc()).offset(offset).limit(limit).all()
 
@@ -286,21 +336,94 @@ async def trigger_sync(connection_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/api/stats")
-async def get_stats(db: Session = Depends(get_db)):
-    """Get statistics about change events"""
-    total_events = db.query(ChangeEvent).count()
+async def get_stats(
+    source: Optional[str] = None,
+    status: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    team_id: Optional[int] = None,
+    tag: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Get statistics about change events with optional filtering"""
+    query = db.query(ChangeEvent)
 
-    # Count by source
-    sources = db.query(
+    # Apply same filters as /api/changes endpoint
+    if source:
+        query = query.filter(ChangeEvent.source == source)
+
+    if status:
+        query = query.filter(ChangeEvent.status == status)
+
+    if start_date:
+        from datetime import datetime
+        start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        query = query.filter(ChangeEvent.timestamp >= start_dt)
+
+    if end_date:
+        from datetime import datetime
+        end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        query = query.filter(ChangeEvent.timestamp <= end_dt)
+
+    # Filter by team - events must have a tag that the team subscribes to
+    if team_id:
+        team = db.query(Team).filter(Team.id == team_id).first()
+        if team and team.tags:
+            # Get all connections that have at least one tag the team subscribes to
+            connections = db.query(Connection).all()
+            matching_connection_ids = []
+            for conn in connections:
+                if conn.tags:
+                    conn_tags = [t.strip() for t in conn.tags.split(',') if t.strip()]
+                    # Check if any team tag matches any connection tag
+                    if any(team_tag in conn_tags for team_tag in team.tags):
+                        matching_connection_ids.append(conn.id)
+
+            if matching_connection_ids:
+                query = query.filter(ChangeEvent.connection_id.in_(matching_connection_ids))
+            else:
+                # No matching connections, return empty stats
+                return {
+                    "total_events": 0,
+                    "by_source": {},
+                    "by_status": {}
+                }
+
+    # Filter by tag - events must be from a connection with this tag
+    if tag:
+        connections = db.query(Connection).all()
+        matching_connection_ids = []
+        for conn in connections:
+            if conn.tags:
+                conn_tags = [t.strip() for t in conn.tags.split(',') if t.strip()]
+                if tag in conn_tags:
+                    matching_connection_ids.append(conn.id)
+
+        if matching_connection_ids:
+            query = query.filter(ChangeEvent.connection_id.in_(matching_connection_ids))
+        else:
+            # No matching connections, return empty stats
+            return {
+                "total_events": 0,
+                "by_source": {},
+                "by_status": {}
+            }
+
+    total_events = query.count()
+
+    # Count by source (with filters applied)
+    sources_query = query.with_entities(
         ChangeEvent.source,
         func.count(ChangeEvent.id)
-    ).group_by(ChangeEvent.source).all()
+    ).group_by(ChangeEvent.source)
+    sources = sources_query.all()
 
-    # Count by status
-    statuses = db.query(
+    # Count by status (with filters applied)
+    statuses_query = query.with_entities(
         ChangeEvent.status,
         func.count(ChangeEvent.id)
-    ).group_by(ChangeEvent.status).all()
+    ).group_by(ChangeEvent.status)
+    statuses = statuses_query.all()
 
     return {
         "total_events": total_events,

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import githubLogo from '../assets/logos/github.svg'
+import DateTimePicker from '../components/DateTimePicker'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -280,6 +281,150 @@ const EVENT_TYPE_CONFIG = {
         ]
       }
     ]
+  },
+  'MR': {
+    titleMatch: '[MR]',
+    sections: [
+      {
+        title: 'Merge Request Details',
+        fields: [
+          {
+            key: 'branches',
+            label: 'Branch',
+            value: (event) => event.metadata?.source_branch && event.metadata?.target_branch
+              ? `${event.metadata.source_branch} → ${event.metadata.target_branch}`
+              : null
+          },
+          {
+            key: 'approved_by',
+            label: 'Approved By',
+            value: (event) => event.metadata?.approved_by?.length > 0
+              ? event.metadata.approved_by.join(', ')
+              : null
+          },
+          {
+            key: 'approvals',
+            label: 'Approvals',
+            value: (event) => event.metadata?.approved_count > 0
+              ? { type: 'html', content: <span style={{ color: '#3fb950' }}>✓ {event.metadata.approved_count}</span> }
+              : null
+          },
+          {
+            key: 'comments',
+            label: 'Comments',
+            value: (event) => event.metadata?.user_notes_count > 0
+              ? event.metadata.user_notes_count
+              : null
+          },
+          {
+            key: 'votes',
+            label: 'Votes',
+            value: (event) => {
+              const upvotes = event.metadata?.upvotes || 0
+              const downvotes = event.metadata?.downvotes || 0
+              if (upvotes === 0 && downvotes === 0) return null
+              return {
+                type: 'html',
+                content: (
+                  <>
+                    <span style={{ color: '#3fb950' }}>👍 {upvotes}</span>
+                    {' / '}
+                    <span style={{ color: '#f85149' }}>👎 {downvotes}</span>
+                  </>
+                )
+              }
+            }
+          },
+          {
+            key: 'merged',
+            label: 'Status',
+            value: (event) => event.metadata?.merged !== undefined
+              ? { type: 'html', content: <span style={{ color: event.metadata.merged ? '#a371f7' : '#808080' }}>{event.metadata.merged ? '✓ Merged' : 'Not merged'}</span> }
+              : null
+          }
+        ],
+        lists: [
+          {
+            key: 'files_changed',
+            title: 'Files Changed',
+            getValue: (event) => event.description?.files_changed,
+            maxVisible: 10
+          }
+        ]
+      }
+    ]
+  },
+  'Pipeline': {
+    titleMatch: '[Pipeline]',
+    sections: [
+      {
+        title: 'Pipeline Details',
+        fields: [
+          {
+            key: 'status',
+            label: 'Status',
+            value: (event) => {
+              const status = event.metadata?.status || event.status
+              if (!status) return null
+              const color = status === 'success' ? '#3fb950' : status === 'failed' ? '#f85149' : '#808080'
+              const icon = status === 'success' ? '✓ ' : status === 'failed' ? '✗ ' : ''
+              return { type: 'html', content: <span style={{ color }}>{icon}{status}</span> }
+            }
+          },
+          {
+            key: 'duration',
+            label: 'Duration',
+            value: (event) => {
+              const seconds = event.metadata?.duration_seconds
+              if (seconds === undefined || seconds === null) return null
+              const mins = Math.floor(seconds / 60)
+              const secs = Math.floor(seconds % 60)
+              return `${mins}m ${secs}s`
+            }
+          },
+          {
+            key: 'ref',
+            label: 'Ref',
+            value: (event) => event.metadata?.ref || null
+          },
+          {
+            key: 'commit',
+            label: 'Commit',
+            value: (event) => event.metadata?.sha || null
+          },
+          {
+            key: 'source',
+            label: 'Source',
+            value: (event) => event.metadata?.source || null
+          },
+          {
+            key: 'pipeline_id',
+            label: 'Pipeline ID',
+            value: (event) => event.metadata?.pipeline_id ? `#${event.metadata.pipeline_id}` : null
+          },
+          {
+            key: 'failed_jobs',
+            label: 'Failed Jobs',
+            value: (event) => event.metadata?.failed_jobs_count > 0
+              ? { type: 'html', content: <span style={{ color: '#f85149' }}>{event.metadata.failed_jobs_count}</span> }
+              : null
+          }
+        ],
+        lists: [
+          {
+            key: 'failed_jobs_detail',
+            title: 'Failed Jobs',
+            getValue: (event) => event.description?.failed_jobs,
+            renderItem: (job, idx) => (
+              <div key={idx} className="job-item">
+                <span className="job-name">{job.name}</span>
+                <span className="job-status" style={{ color: '#f85149' }}>{job.status}</span>
+              </div>
+            )
+          }
+        ]
+      }
+    ]
   }
 }
 
@@ -291,9 +436,24 @@ function Dashboard() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
   const [sourceFilter, setSourceFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
   const [tagFilter, setTagFilter] = useState('')
+
+  // Set default dates to today
+  const getDefaultStartDate = () => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return today.toISOString()
+  }
+
+  const getDefaultEndDate = () => {
+    const today = new Date()
+    today.setHours(23, 59, 59, 999)
+    return today.toISOString()
+  }
+
+  const [startDate, setStartDate] = useState(getDefaultStartDate())
+  const [endDate, setEndDate] = useState(getDefaultEndDate())
   const [expandedEvents, setExpandedEvents] = useState(new Set())
   const [connectors, setConnectors] = useState([])
   const [teams, setTeams] = useState([])
@@ -312,7 +472,7 @@ function Dashboard() {
     fetchTeams()
     const interval = setInterval(() => fetchData(true), 30000)
     return () => clearInterval(interval)
-  }, [sourceFilter, statusFilter])
+  }, [sourceFilter, startDate, endDate, teamFilter, tagFilter])
 
   useEffect(() => {
     // Add scroll listener for infinite scroll
@@ -347,7 +507,10 @@ function Dashboard() {
 
       const params = new URLSearchParams()
       if (sourceFilter) params.append('source', sourceFilter)
-      if (statusFilter) params.append('status', statusFilter)
+      if (startDate) params.append('start_date', startDate)
+      if (endDate) params.append('end_date', endDate)
+      if (teamFilter) params.append('team_id', teamFilter)
+      if (tagFilter) params.append('tag', tagFilter)
       params.append('limit', limit)
       params.append('offset', currentOffset)
 
@@ -363,7 +526,20 @@ function Dashboard() {
       // Check if there are more events to load
       setHasMore(changesData.length === limit)
 
-      const statsRes = await fetch(`${API_URL}/api/stats`)
+      // Fetch stats from backend (shows total matching filters, not just loaded)
+      const statsParams = new URLSearchParams()
+      if (sourceFilter) statsParams.append('source', sourceFilter)
+      if (startDate) statsParams.append('start_date', startDate)
+      if (endDate) statsParams.append('end_date', endDate)
+      if (teamFilter) statsParams.append('team_id', teamFilter)
+      if (tagFilter) statsParams.append('tag', tagFilter)
+
+      const statsRes = await fetch(`${API_URL}/api/stats?${statsParams}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      })
       const statsData = await statsRes.json()
       setStats(statsData)
 
@@ -376,13 +552,6 @@ function Dashboard() {
     }
   }
 
-  const loadMore = () => {
-    if (!loadingMore && hasMore) {
-      const newOffset = offset + limit
-      setOffset(newOffset)
-      fetchData(false, newOffset)
-    }
-  }
 
   const fetchConnections = async () => {
     try {
@@ -434,29 +603,6 @@ function Dashboard() {
     return Array.from(tags).sort()
   }
 
-  const filterChangesByTeamAndTag = (changes) => {
-    if (!teamFilter && !tagFilter) return changes
-
-    return changes.filter(change => {
-      const eventTags = getTagsForEvent(change)
-
-      // Filter by team - event must have at least one tag that the team subscribes to
-      if (teamFilter) {
-        const team = teams.find(t => t.id === parseInt(teamFilter))
-        if (team && team.tags) {
-          const hasTeamTag = team.tags.some(teamTag => eventTags.includes(teamTag))
-          if (!hasTeamTag) return false
-        }
-      }
-
-      // Filter by specific tag
-      if (tagFilter) {
-        if (!eventTags.includes(tagFilter)) return false
-      }
-
-      return true
-    })
-  }
 
   const formatDate = (dateString) => {
     // Parse as UTC and convert to local timezone
@@ -641,7 +787,7 @@ function Dashboard() {
             <h3>Total Events</h3>
             <p className="stat-number">{stats.total_events}</p>
           </div>
-          {Object.entries(stats.by_source).map(([source, count]) => (
+          {Object.entries(stats.by_source).sort(([a], [b]) => a.localeCompare(b)).map(([source, count]) => (
             <div key={source} className="stat-card">
               <h3>{source}</h3>
               <p className="stat-number">{count}</p>
@@ -656,18 +802,21 @@ function Dashboard() {
           <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
             <option value="">All</option>
             <option value="github">GitHub</option>
+            <option value="gitlab">GitLab</option>
           </select>
         </div>
-        <div className="filter-group">
-          <label>Status:</label>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">All</option>
-            <option value="open">Open</option>
-            <option value="closed">Closed</option>
-            <option value="merged">Merged</option>
-            <option value="published">Published</option>
-          </select>
-        </div>
+        <DateTimePicker
+          value={startDate}
+          onChange={setStartDate}
+          label="Start Date"
+          isEndOfDay={false}
+        />
+        <DateTimePicker
+          value={endDate}
+          onChange={setEndDate}
+          label="End Date"
+          isEndOfDay={true}
+        />
         <div className="filter-group">
           <label>Team:</label>
           <select value={teamFilter} onChange={(e) => { setTeamFilter(e.target.value); setTagFilter(''); }}>
@@ -697,7 +846,7 @@ function Dashboard() {
         ) : changes.length === 0 ? (
           <p>No changes found. Make sure connectors are running.</p>
         ) : (
-          groupChangesByTime(filterChangesByTeamAndTag(changes)).map((group, groupIndex) => (
+          groupChangesByTime(changes).map((group, groupIndex) => (
             <div key={groupIndex} className="time-group">
               <div className="time-separator">
                 <span className="time-label">{group.label}</span>
