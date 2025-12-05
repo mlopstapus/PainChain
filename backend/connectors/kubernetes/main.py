@@ -12,7 +12,8 @@ from connector import sync_kubernetes
 
 class Settings(BaseSettings):
     """Environment-based configuration."""
-    kubeconfig: str = None  # Path to kubeconfig (None for in-cluster or default)
+    api_server: str = None  # Kubernetes API server URL (None for in-cluster)
+    token: str = None  # Service account bearer token (None for in-cluster)
     cluster_name: str = "default"  # Cluster identifier
     namespaces: str = ""  # Comma-separated list of namespaces (empty for all)
     poll_interval: int = 300  # Seconds between polls
@@ -41,7 +42,8 @@ def main():
             since = last_sync if last_sync else datetime.now(timezone.utc) - timedelta(days=7)
 
             sync_kubernetes(
-                kubeconfig=settings.kubeconfig,
+                api_server=settings.api_server,
+                token=settings.token,
                 namespaces=namespaces,
                 cluster_name=settings.cluster_name,
                 connection_id=settings.connection_id,

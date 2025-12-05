@@ -115,11 +115,19 @@
         "required": true
       },
       {
-        "key": "kubeconfig",
-        "label": "Kubeconfig Path",
+        "key": "apiServer",
+        "label": "API Server URL",
         "type": "text",
-        "placeholder": "/path/to/kubeconfig or leave empty for default",
-        "help": "Path to kubeconfig file. Leave empty to use default kubeconfig or in-cluster authentication.",
+        "placeholder": "https://kubernetes.default.svc or https://api.cluster.com:6443",
+        "help": "Kubernetes API server URL. Leave empty to use in-cluster configuration.",
+        "required": false
+      },
+      {
+        "key": "token",
+        "label": "Service Account Token",
+        "type": "password",
+        "placeholder": "Enter service account token",
+        "help": "Bearer token for authentication. Leave empty to use in-cluster service account.",
         "required": false
       },
       {

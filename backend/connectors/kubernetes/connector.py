@@ -23,29 +23,37 @@ class KubernetesConnector:
     - Ingress
     """
 
-    def __init__(self, kubeconfig: Optional[str] = None, namespaces: List[str] = None, cluster_name: str = "default"):
+    def __init__(self, api_server: Optional[str] = None, token: Optional[str] = None, namespaces: List[str] = None, cluster_name: str = "default"):
         """
         Initialize Kubernetes connector.
 
         Args:
-            kubeconfig: Path to kubeconfig file (None for in-cluster auth)
+            api_server: Kubernetes API server URL (None for in-cluster config)
+            token: Service account bearer token (None for in-cluster config)
             namespaces: List of namespaces to monitor (empty list for all)
             cluster_name: Cluster identifier for tagging
         """
-        self.kubeconfig = kubeconfig
+        self.api_server = api_server
+        self.token = token
         self.namespaces = namespaces or []
         self.cluster_name = cluster_name
         self.client = None
 
         # Initialize Kubernetes client
         try:
-            if kubeconfig:
-                config.load_kube_config(config_file=kubeconfig)
+            if api_server and token:
+                # Use provided API server and token
+                configuration = client.Configuration()
+                configuration.host = api_server
+                configuration.api_key = {"authorization": f"Bearer {token}"}
+                configuration.verify_ssl = True  # Set to False for self-signed certs if needed
+                client.Configuration.set_default(configuration)
             else:
-                # Try in-cluster config first, fallback to default kubeconfig
+                # Try in-cluster config first
                 try:
                     config.load_incluster_config()
                 except config.ConfigException:
+                    # Fallback to default kubeconfig
                     config.load_kube_config()
 
             self.apps_v1 = client.AppsV1Api()
@@ -520,10 +528,11 @@ class KubernetesConnector:
                 print(f"Stored ingress: {ingress.metadata.name} in {namespace}")
 
 
-def sync_kubernetes(kubeconfig: Optional[str], namespaces: List[str], cluster_name: str, connection_id: int, since: Optional[datetime] = None):
+def sync_kubernetes(api_server: Optional[str], token: Optional[str], namespaces: List[str], cluster_name: str, connection_id: int, since: Optional[datetime] = None):
     """Sync Kubernetes changes."""
     connector = KubernetesConnector(
-        kubeconfig=kubeconfig,
+        api_server=api_server,
+        token=token,
         namespaces=namespaces,
         cluster_name=cluster_name
     )
