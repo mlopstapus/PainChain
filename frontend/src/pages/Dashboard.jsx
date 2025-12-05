@@ -390,8 +390,21 @@ const EVENT_TYPE_CONFIG = {
             key: 'status',
             label: 'Status',
             value: (event) => {
-              const status = event.metadata?.status || event.status
+              let status = event.metadata?.status
+
+              // If no status but has duration, it's completed (infer from failed jobs)
+              if (!status && event.metadata?.duration_seconds !== undefined && event.metadata?.duration_seconds > 0) {
+                const hasFailed = event.metadata?.failed_jobs_count > 0
+                status = hasFailed ? 'failed' : 'success'
+              }
+
+              // Fall back to top-level status field if still no status
+              if (!status) {
+                status = event.status
+              }
+
               if (!status) return null
+
               const color = status === 'success' ? '#3fb950' : status === 'failed' ? '#f85149' : '#808080'
               const icon = status === 'success' ? '✓ ' : status === 'failed' ? '✗ ' : ''
               return { type: 'html', content: <span style={{ color }}>{icon}{status}</span> }
