@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -69,7 +69,7 @@ async def get_changes(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     team_id: Optional[int] = None,
-    tag: Optional[str] = None,
+    tag: List[str] = Query([]),
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db)
@@ -113,14 +113,15 @@ async def get_changes(
                 # No matching connections, return empty
                 return []
 
-    # Filter by tag - events must be from a connection with this tag
+    # Filter by tags - events must be from a connection with at least one of these tags
     if tag:
         connections = db.query(Connection).all()
         matching_connection_ids = []
         for conn in connections:
             if conn.tags:
                 conn_tags = [t.strip() for t in conn.tags.split(',') if t.strip()]
-                if tag in conn_tags:
+                # Check if any of the filter tags match any connection tag
+                if any(filter_tag in conn_tags for filter_tag in tag):
                     matching_connection_ids.append(conn.id)
 
         if matching_connection_ids:
@@ -342,7 +343,7 @@ async def get_stats(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     team_id: Optional[int] = None,
-    tag: Optional[str] = None,
+    tag: List[str] = Query([]),
     db: Session = Depends(get_db)
 ):
     """Get statistics about change events with optional filtering"""
@@ -389,14 +390,15 @@ async def get_stats(
                     "by_status": {}
                 }
 
-    # Filter by tag - events must be from a connection with this tag
+    # Filter by tags - events must be from a connection with at least one of these tags
     if tag:
         connections = db.query(Connection).all()
         matching_connection_ids = []
         for conn in connections:
             if conn.tags:
                 conn_tags = [t.strip() for t in conn.tags.split(',') if t.strip()]
-                if tag in conn_tags:
+                # Check if any of the filter tags match any connection tag
+                if any(filter_tag in conn_tags for filter_tag in tag):
                     matching_connection_ids.append(conn.id)
 
         if matching_connection_ids:
