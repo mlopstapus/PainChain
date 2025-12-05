@@ -174,8 +174,8 @@
   border-radius: 12px;
   border: 1px solid #2a3142;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
   align-items: end;
 }
 
@@ -242,6 +242,29 @@
 }
 
 .refresh-btn:active {
+  transform: translateY(0);
+}
+
+.clear-tags-btn {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid #f85149;
+  color: #f85149;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.clear-tags-btn:hover {
+  background: rgba(248, 81, 73, 0.1);
+  transform: translateY(-1px);
+}
+
+.clear-tags-btn:active {
   transform: translateY(0);
 }
 
