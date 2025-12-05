@@ -1,0 +1,160 @@
+{
+  "github": {
+    "id": "github",
+    "name": "GitHub",
+    "fields": [
+      {
+        "key": "name",
+        "label": "Connection Name",
+        "type": "text",
+        "placeholder": "e.g., Personal GitHub, Work Repos",
+        "required": true
+      },
+      {
+        "key": "token",
+        "label": "Token",
+        "type": "password",
+        "placeholder": "Enter GitHub Personal Access Token",
+        "required": true
+      },
+      {
+        "key": "pollInterval",
+        "label": "Poll Interval (seconds)",
+        "type": "number",
+        "placeholder": "300",
+        "default": "300",
+        "required": true
+      },
+      {
+        "key": "repos",
+        "label": "Repositories",
+        "type": "text",
+        "placeholder": "owner/repo1,owner/repo2",
+        "help": "Comma-separated list. Leave empty for all repos.",
+        "required": false
+      },
+      {
+        "key": "branches",
+        "label": "Branches",
+        "type": "text",
+        "placeholder": "main,develop,staging",
+        "help": "Comma-separated branch names to track commits from.",
+        "required": false
+      },
+      {
+        "key": "tags",
+        "label": "Tags",
+        "type": "text",
+        "placeholder": "tag1,tag2,tag3",
+        "help": "Comma-separated tags for filtering events by team.",
+        "required": false
+      }
+    ]
+  },
+  "gitlab": {
+    "id": "gitlab",
+    "name": "GitLab",
+    "fields": [
+      {
+        "key": "name",
+        "label": "Connection Name",
+        "type": "text",
+        "placeholder": "e.g., Company GitLab, Personal Projects",
+        "required": true
+      },
+      {
+        "key": "token",
+        "label": "Token",
+        "type": "password",
+        "placeholder": "Enter GitLab Personal Access Token",
+        "required": true
+      },
+      {
+        "key": "pollInterval",
+        "label": "Poll Interval (seconds)",
+        "type": "number",
+        "placeholder": "300",
+        "default": "300",
+        "required": true
+      },
+      {
+        "key": "repos",
+        "label": "Projects",
+        "type": "text",
+        "placeholder": "group/project1,group/project2",
+        "help": "Comma-separated list. Leave empty for all projects.",
+        "required": false
+      },
+      {
+        "key": "branches",
+        "label": "Branches",
+        "type": "text",
+        "placeholder": "main,develop,staging",
+        "help": "Comma-separated branch names to track commits from.",
+        "required": false
+      },
+      {
+        "key": "tags",
+        "label": "Tags",
+        "type": "text",
+        "placeholder": "tag1,tag2,tag3",
+        "help": "Comma-separated tags for filtering events by team.",
+        "required": false
+      }
+    ]
+  },
+  "kubernetes": {
+    "id": "kubernetes",
+    "name": "Kubernetes",
+    "fields": [
+      {
+        "key": "name",
+        "label": "Connection Name",
+        "type": "text",
+        "placeholder": "e.g., Production Cluster, Staging K8s",
+        "required": true
+      },
+      {
+        "key": "kubeconfig",
+        "label": "Kubeconfig Path",
+        "type": "text",
+        "placeholder": "/path/to/kubeconfig or leave empty for default",
+        "help": "Path to kubeconfig file. Leave empty to use default kubeconfig or in-cluster authentication.",
+        "required": false
+      },
+      {
+        "key": "clusterName",
+        "label": "Cluster Name",
+        "type": "text",
+        "placeholder": "production",
+        "default": "default",
+        "help": "Cluster identifier for tagging and organization.",
+        "required": true
+      },
+      {
+        "key": "pollInterval",
+        "label": "Poll Interval (seconds)",
+        "type": "number",
+        "placeholder": "300",
+        "default": "300",
+        "required": true
+      },
+      {
+        "key": "namespaces",
+        "label": "Namespaces",
+        "type": "text",
+        "placeholder": "default,kube-system,prod",
+        "help": "Comma-separated list of namespaces to monitor. Leave empty to monitor all namespaces.",
+        "required": false
+      },
+      {
+        "key": "tags",
+        "label": "Tags",
+        "type": "text",
+        "placeholder": "tag1,tag2,tag3",
+        "help": "Comma-separated tags for filtering events by team.",
+        "required": false
+      }
+    ]
+  }
+}

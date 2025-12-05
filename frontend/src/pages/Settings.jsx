@@ -1,25 +1,32 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import '../Settings.css'
-import githubLogo from '../assets/logos/github.svg'
+import githubLogo from '../assets/logos/github.png'
+import gitlabLogo from '../assets/logos/gitlab.png'
+import kubernetesLogo from '../assets/logos/kubernetes.png'
 import { getFieldVisibility, toggleField, resetToDefaults, FIELD_LABELS, EVENT_TYPE_NAMES } from '../utils/fieldVisibility'
 import { useToast } from '../components/Toast'
+import connectorConfigs from '../config/connectorConfigs.json'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const connectorLogos = {
   github: githubLogo,
+  gitlab: gitlabLogo,
+  kubernetes: kubernetesLogo,
 }
 
 const CONNECTOR_TYPES = [
   { id: 'github', name: 'GitHub' },
   { id: 'gitlab', name: 'GitLab' },
+  { id: 'kubernetes', name: 'Kubernetes' },
 ]
 
 // Map connector types to their event types
 const CONNECTOR_EVENT_TYPES = {
   github: ['PR', 'Workflow', 'Commit', 'Release'],
-  gitlab: ['MR', 'Pipeline', 'Commit', 'Release']
+  gitlab: ['MR', 'Pipeline', 'Commit', 'Release'],
+  kubernetes: ['K8sDeployment', 'K8sStatefulSet', 'K8sDaemonSet', 'K8sService', 'K8sConfigMap', 'K8sSecret', 'K8sIngress']
 }
 
 function Settings() {
@@ -35,20 +42,42 @@ function Settings() {
   const [saving, setSaving] = useState(false)
   const [creatingNew, setCreatingNew] = useState(false)
   const [newConnectionType, setNewConnectionType] = useState('')
-  const [config, setConfig] = useState({
-    name: '',
-    enabled: false,
-    token: '',
-    pollInterval: '300',
-    repos: '',
-    branches: '',
-    tags: ''
-  })
+  const [config, setConfig] = useState({})
   const [teamConfig, setTeamConfig] = useState({
     name: '',
     tags: ''
   })
   const [fieldVisibility, setFieldVisibility] = useState(getFieldVisibility())
+
+  // Helper to initialize config from connector definition
+  const initializeConfig = (connectorType) => {
+    const connectorDef = connectorConfigs[connectorType]
+    if (!connectorDef) return {}
+
+    const initialConfig = { enabled: false }
+    connectorDef.fields.forEach(field => {
+      initialConfig[field.key] = field.default || ''
+    })
+    return initialConfig
+  }
+
+  // Helper to load config from connection data
+  const loadConfigFromConnection = (connection) => {
+    const connectorDef = connectorConfigs[connection.type]
+    if (!connectorDef) return {}
+
+    const loadedConfig = { enabled: connection.enabled }
+    connectorDef.fields.forEach(field => {
+      if (field.key === 'name') {
+        loadedConfig[field.key] = connection.name || ''
+      } else if (field.key === 'tags') {
+        loadedConfig[field.key] = connection.tags || ''
+      } else {
+        loadedConfig[field.key] = connection.config?.[field.key] || field.default || ''
+      }
+    })
+    return loadedConfig
+  }
 
   useEffect(() => {
     if (activeMenu === 'connections') {
@@ -64,15 +93,7 @@ function Settings() {
       const connection = connections.find(c => c.id === location.state.connectionId)
       if (connection) {
         setSelectedConnection(connection)
-        setConfig({
-          name: connection.name,
-          enabled: connection.enabled,
-          token: connection.config?.token || '',
-          pollInterval: String(connection.config?.poll_interval || 300),
-          repos: connection.config?.repos || '',
-          branches: connection.config?.branches || '',
-          tags: connection.tags || ''
-        })
+        setConfig(loadConfigFromConnection(connection))
       }
       // Clear the navigation state
       navigate(location.pathname, { replace: true, state: {} })
@@ -81,15 +102,7 @@ function Settings() {
 
   useEffect(() => {
     if (selectedConnection) {
-      setConfig({
-        name: selectedConnection.name || '',
-        enabled: selectedConnection.enabled || false,
-        token: selectedConnection.config?.token || '',
-        pollInterval: selectedConnection.config?.poll_interval || '300',
-        repos: selectedConnection.config?.repos || '',
-        branches: selectedConnection.config?.branches || '',
-        tags: selectedConnection.tags || ''
-      })
+      setConfig(loadConfigFromConnection(selectedConnection))
     }
   }, [selectedConnection])
 
@@ -170,6 +183,26 @@ function Settings() {
     try {
       setSaving(true)
 
+      const connectorType = creatingNew ? newConnectionType : selectedConnection.type
+      const connectorDef = connectorConfigs[connectorType]
+
+      // Build config object dynamically (exclude name, tags, enabled as they're top-level)
+      const apiConfig = {}
+      connectorDef.fields.forEach(field => {
+        if (field.key !== 'name' && field.key !== 'tags' && field.key !== 'enabled') {
+          let value = config[field.key]
+
+          // Handle special conversions
+          if (field.key === 'pollInterval') {
+            apiConfig['poll_interval'] = parseInt(value) || 300
+          } else if (field.type === 'number') {
+            apiConfig[field.key] = parseInt(value) || 0
+          } else {
+            apiConfig[field.key] = value
+          }
+        }
+      })
+
       if (creatingNew) {
         // Create new connection
         const response = await fetch(`${API_URL}/api/connections`, {
@@ -181,12 +214,7 @@ function Settings() {
             name: config.name,
             type: newConnectionType,
             enabled: config.enabled,
-            config: {
-              token: config.token,
-              poll_interval: parseInt(config.pollInterval),
-              repos: config.repos,
-              branches: config.branches
-            },
+            config: apiConfig,
             tags: config.tags
           })
         })
@@ -195,15 +223,7 @@ function Settings() {
           await fetchConnections()
           setCreatingNew(false)
           setNewConnectionType('')
-          setConfig({
-            name: '',
-            enabled: false,
-            token: '',
-            pollInterval: '300',
-            repos: '',
-            branches: '',
-            tags: ''
-          })
+          setConfig({})
           showToast('Connection created successfully!')
         } else {
           showToast('Failed to create connection', 'error')
@@ -218,12 +238,7 @@ function Settings() {
           body: JSON.stringify({
             name: config.name,
             enabled: selectedConnection.enabled, // Keep existing enabled state
-            config: {
-              token: config.token,
-              poll_interval: parseInt(config.pollInterval),
-              repos: config.repos,
-              branches: config.branches
-            },
+            config: apiConfig,
             tags: config.tags
           })
         })
@@ -342,15 +357,7 @@ function Settings() {
     setCreatingNew(true)
     setNewConnectionType(type)
     setSelectedConnection(null)
-    setConfig({
-      name: '',
-      enabled: false,
-      token: '',
-      pollInterval: '300',
-      repos: '',
-      branches: '',
-      tags: ''
-    })
+    setConfig(initializeConfig(type))
   }
 
   const groupConnectionsByType = () => {
@@ -482,69 +489,27 @@ function Settings() {
             <div className="detail-content">
               <div className="config-section">
                 <h4>Configuration</h4>
-                <div className="form-group">
-                  <label>Connection Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Personal GitHub, Work Repos"
-                    className="form-input"
-                    value={config.name}
-                    onChange={(e) => setConfig({...config, name: e.target.value})}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Token</label>
-                  <input
-                    type="password"
-                    placeholder="Enter API token"
-                    className="form-input"
-                    value={config.token}
-                    onChange={(e) => setConfig({...config, token: e.target.value})}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Poll Interval (seconds)</label>
-                  <input
-                    type="number"
-                    placeholder="300"
-                    className="form-input"
-                    value={config.pollInterval}
-                    onChange={(e) => setConfig({...config, pollInterval: e.target.value})}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Repositories</label>
-                  <input
-                    type="text"
-                    placeholder="owner/repo1,owner/repo2"
-                    className="form-input"
-                    value={config.repos}
-                    onChange={(e) => setConfig({...config, repos: e.target.value})}
-                  />
-                  <span className="form-help">Comma-separated list. Leave empty for all repos.</span>
-                </div>
-                <div className="form-group">
-                  <label>Branches</label>
-                  <input
-                    type="text"
-                    placeholder="main,develop,staging"
-                    className="form-input"
-                    value={config.branches}
-                    onChange={(e) => setConfig({...config, branches: e.target.value})}
-                  />
-                  <span className="form-help">Comma-separated branch names to track commits from.</span>
-                </div>
-                <div className="form-group">
-                  <label>Tags</label>
-                  <input
-                    type="text"
-                    placeholder="tag1,tag2,tag3"
-                    className="form-input"
-                    value={config.tags}
-                    onChange={(e) => setConfig({...config, tags: e.target.value})}
-                  />
-                  <span className="form-help">Comma-separated tags for filtering events by team.</span>
-                </div>
+                {(() => {
+                  const connectorType = creatingNew ? newConnectionType : selectedConnection?.type
+                  const connectorDef = connectorConfigs[connectorType]
+
+                  if (!connectorDef) return null
+
+                  return connectorDef.fields.map((field) => (
+                    <div key={field.key} className="form-group">
+                      <label>{field.label}</label>
+                      <input
+                        type={field.type}
+                        placeholder={field.placeholder}
+                        className="form-input"
+                        value={config[field.key] || ''}
+                        onChange={(e) => setConfig({...config, [field.key]: e.target.value})}
+                        required={field.required}
+                      />
+                      {field.help && <span className="form-help">{field.help}</span>}
+                    </div>
+                  ))
+                })()}
               </div>
 
               {!creatingNew && selectedConnection && (

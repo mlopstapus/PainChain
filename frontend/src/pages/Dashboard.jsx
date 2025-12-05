@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import githubLogo from '../assets/logos/github.svg'
+import githubLogo from '../assets/logos/github.png'
+import gitlabLogo from '../assets/logos/gitlab.png'
+import kubernetesLogo from '../assets/logos/kubernetes.png'
 import DateTimePicker from '../components/DateTimePicker'
+import TagsDropdown from '../components/TagsDropdown'
 import { isFieldVisible } from '../utils/fieldVisibility'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const connectorLogos = {
   github: githubLogo,
+  gitlab: gitlabLogo,
+  kubernetes: kubernetesLogo,
 }
 
 /**
@@ -426,6 +431,300 @@ const EVENT_TYPE_CONFIG = {
         ]
       }
     ]
+  },
+  'K8sDeployment': {
+    titleMatch: '[K8s Deployment]',
+    sections: [
+      {
+        title: 'Deployment Details',
+        fields: [
+          {
+            key: 'namespace',
+            label: 'Namespace',
+            value: (event) => event.metadata?.namespace || null
+          },
+          {
+            key: 'cluster',
+            label: 'Cluster',
+            value: (event) => event.metadata?.cluster || null
+          },
+          {
+            key: 'replicas',
+            label: 'Replicas',
+            value: (event) => {
+              const replicas = event.metadata?.replicas
+              const ready = event.metadata?.ready_replicas || 0
+              const available = event.metadata?.available_replicas || 0
+              if (replicas === undefined) return null
+              const color = ready === replicas ? '#3fb950' : '#f85149'
+              return {
+                type: 'html',
+                content: <span style={{ color }}>{ready}/{replicas} ready, {available} available</span>
+              }
+            }
+          },
+          {
+            key: 'strategy',
+            label: 'Strategy',
+            value: (event) => event.metadata?.strategy || null
+          }
+        ],
+        lists: [
+          {
+            key: 'images',
+            title: 'Container Images',
+            getValue: (event) => event.description?.images,
+            renderItem: (image, idx) => (
+              <div key={idx} className="item-entry">
+                <span style={{ color: '#00E8A0', fontWeight: 600 }}>{image.name}</span>: {image.image}
+              </div>
+            )
+          }
+        ]
+      }
+    ]
+  },
+  'K8sStatefulSet': {
+    titleMatch: '[K8s StatefulSet]',
+    sections: [
+      {
+        title: 'StatefulSet Details',
+        fields: [
+          {
+            key: 'namespace',
+            label: 'Namespace',
+            value: (event) => event.metadata?.namespace || null
+          },
+          {
+            key: 'cluster',
+            label: 'Cluster',
+            value: (event) => event.metadata?.cluster || null
+          },
+          {
+            key: 'replicas',
+            label: 'Replicas',
+            value: (event) => {
+              const replicas = event.metadata?.replicas
+              const ready = event.metadata?.ready_replicas || 0
+              if (replicas === undefined) return null
+              const color = ready === replicas ? '#3fb950' : '#f85149'
+              return {
+                type: 'html',
+                content: <span style={{ color }}>{ready}/{replicas} ready</span>
+              }
+            }
+          },
+          {
+            key: 'service_name',
+            label: 'Service',
+            value: (event) => event.metadata?.service_name || null
+          }
+        ],
+        lists: [
+          {
+            key: 'images',
+            title: 'Container Images',
+            getValue: (event) => event.description?.images,
+            renderItem: (image, idx) => (
+              <div key={idx} className="item-entry">
+                <span style={{ color: '#00E8A0', fontWeight: 600 }}>{image.name}</span>: {image.image}
+              </div>
+            )
+          }
+        ]
+      }
+    ]
+  },
+  'K8sDaemonSet': {
+    titleMatch: '[K8s DaemonSet]',
+    sections: [
+      {
+        title: 'DaemonSet Details',
+        fields: [
+          {
+            key: 'namespace',
+            label: 'Namespace',
+            value: (event) => event.metadata?.namespace || null
+          },
+          {
+            key: 'cluster',
+            label: 'Cluster',
+            value: (event) => event.metadata?.cluster || null
+          },
+          {
+            key: 'scheduled',
+            label: 'Pods',
+            value: (event) => {
+              const desired = event.metadata?.desired_scheduled || 0
+              const ready = event.metadata?.number_ready || 0
+              const color = ready === desired ? '#3fb950' : '#f85149'
+              return {
+                type: 'html',
+                content: <span style={{ color }}>{ready}/{desired} ready</span>
+              }
+            }
+          }
+        ],
+        lists: [
+          {
+            key: 'images',
+            title: 'Container Images',
+            getValue: (event) => event.description?.images,
+            renderItem: (image, idx) => (
+              <div key={idx} className="item-entry">
+                <span style={{ color: '#00E8A0', fontWeight: 600 }}>{image.name}</span>: {image.image}
+              </div>
+            )
+          }
+        ]
+      }
+    ]
+  },
+  'K8sService': {
+    titleMatch: '[K8s Service]',
+    sections: [
+      {
+        title: 'Service Details',
+        fields: [
+          {
+            key: 'namespace',
+            label: 'Namespace',
+            value: (event) => event.metadata?.namespace || null
+          },
+          {
+            key: 'cluster',
+            label: 'Cluster',
+            value: (event) => event.metadata?.cluster || null
+          },
+          {
+            key: 'type',
+            label: 'Type',
+            value: (event) => event.metadata?.type || null
+          },
+          {
+            key: 'cluster_ip',
+            label: 'Cluster IP',
+            value: (event) => event.metadata?.cluster_ip || null
+          }
+        ],
+        lists: [
+          {
+            key: 'ports',
+            title: 'Ports',
+            getValue: (event) => event.description?.ports,
+            renderItem: (port, idx) => (
+              <div key={idx} className="item-entry">
+                {port.port} ({port.protocol}) → {port.target_port}
+              </div>
+            )
+          }
+        ]
+      }
+    ]
+  },
+  'K8sConfigMap': {
+    titleMatch: '[K8s ConfigMap]',
+    sections: [
+      {
+        title: 'ConfigMap Details',
+        fields: [
+          {
+            key: 'namespace',
+            label: 'Namespace',
+            value: (event) => event.metadata?.namespace || null
+          },
+          {
+            key: 'cluster',
+            label: 'Cluster',
+            value: (event) => event.metadata?.cluster || null
+          },
+          {
+            key: 'num_keys',
+            label: 'Data Keys',
+            value: (event) => event.metadata?.num_keys || null
+          }
+        ],
+        lists: [
+          {
+            key: 'keys',
+            title: 'Keys',
+            getValue: (event) => event.description?.keys,
+            maxVisible: 10
+          }
+        ]
+      }
+    ]
+  },
+  'K8sSecret': {
+    titleMatch: '[K8s Secret]',
+    sections: [
+      {
+        title: 'Secret Details',
+        fields: [
+          {
+            key: 'namespace',
+            label: 'Namespace',
+            value: (event) => event.metadata?.namespace || null
+          },
+          {
+            key: 'cluster',
+            label: 'Cluster',
+            value: (event) => event.metadata?.cluster || null
+          },
+          {
+            key: 'type',
+            label: 'Type',
+            value: (event) => event.metadata?.type || null
+          },
+          {
+            key: 'num_keys',
+            label: 'Data Keys',
+            value: (event) => event.metadata?.num_keys || null
+          }
+        ],
+        lists: [
+          {
+            key: 'keys',
+            title: 'Keys',
+            getValue: (event) => event.description?.keys,
+            maxVisible: 10
+          }
+        ]
+      }
+    ]
+  },
+  'K8sIngress': {
+    titleMatch: '[K8s Ingress]',
+    sections: [
+      {
+        title: 'Ingress Details',
+        fields: [
+          {
+            key: 'namespace',
+            label: 'Namespace',
+            value: (event) => event.metadata?.namespace || null
+          },
+          {
+            key: 'cluster',
+            label: 'Cluster',
+            value: (event) => event.metadata?.cluster || null
+          },
+          {
+            key: 'ingress_class',
+            label: 'Ingress Class',
+            value: (event) => event.metadata?.ingress_class || null
+          }
+        ],
+        lists: [
+          {
+            key: 'hosts',
+            title: 'Hosts',
+            getValue: (event) => event.description?.hosts,
+            maxVisible: 10
+          }
+        ]
+      }
+    ]
   }
 }
 
@@ -437,8 +736,7 @@ function Dashboard() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
   const [sourceFilter, setSourceFilter] = useState('')
-  const [teamFilter, setTeamFilter] = useState('')
-  const [tagFilter, setTagFilter] = useState('')
+  const [tagFilter, setTagFilter] = useState([])
 
   // Set default dates to today
   const getDefaultStartDate = () => {
@@ -457,7 +755,6 @@ function Dashboard() {
   const [endDate, setEndDate] = useState(getDefaultEndDate())
   const [expandedEvents, setExpandedEvents] = useState(new Set())
   const [connectors, setConnectors] = useState([])
-  const [teams, setTeams] = useState([])
   const [expandedTags, setExpandedTags] = useState(new Set())
   const [offset, setOffset] = useState(0)
   const [hasMore, setHasMore] = useState(true)
@@ -470,10 +767,9 @@ function Dashboard() {
     setHasMore(true)
     fetchData(true)
     fetchConnections()
-    fetchTeams()
     const interval = setInterval(() => fetchData(true), 30000)
     return () => clearInterval(interval)
-  }, [sourceFilter, startDate, endDate, teamFilter, tagFilter])
+  }, [sourceFilter, startDate, endDate, tagFilter])
 
   useEffect(() => {
     // Add scroll listener for infinite scroll
@@ -510,8 +806,8 @@ function Dashboard() {
       if (sourceFilter) params.append('source', sourceFilter)
       if (startDate) params.append('start_date', startDate)
       if (endDate) params.append('end_date', endDate)
-      if (teamFilter) params.append('team_id', teamFilter)
-      if (tagFilter) params.append('tag', tagFilter)
+      // Append each selected tag separately
+      tagFilter.forEach(tag => params.append('tag', tag))
       params.append('limit', limit)
       params.append('offset', currentOffset)
 
@@ -532,8 +828,8 @@ function Dashboard() {
       if (sourceFilter) statsParams.append('source', sourceFilter)
       if (startDate) statsParams.append('start_date', startDate)
       if (endDate) statsParams.append('end_date', endDate)
-      if (teamFilter) statsParams.append('team_id', teamFilter)
-      if (tagFilter) statsParams.append('tag', tagFilter)
+      // Append each selected tag separately
+      tagFilter.forEach(tag => statsParams.append('tag', tag))
 
       const statsRes = await fetch(`${API_URL}/api/stats?${statsParams}`, {
         cache: 'no-store',
@@ -561,16 +857,6 @@ function Dashboard() {
       setConnectors(data)  // Keep using setConnectors to avoid changing all references
     } catch (err) {
       console.error('Failed to fetch connections:', err)
-    }
-  }
-
-  const fetchTeams = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/teams`)
-      const data = await response.json()
-      setTeams(data)
-    } catch (err) {
-      console.error('Failed to fetch teams:', err)
     }
   }
 
@@ -812,6 +1098,7 @@ function Dashboard() {
             <option value="">All</option>
             <option value="github">GitHub</option>
             <option value="gitlab">GitLab</option>
+            <option value="kubernetes">Kubernetes</option>
           </select>
         </div>
         <DateTimePicker
@@ -827,26 +1114,13 @@ function Dashboard() {
           isEndOfDay={true}
         />
         <div className="filter-group">
-          <label>Team:</label>
-          <select value={teamFilter} onChange={(e) => { setTeamFilter(e.target.value); setTagFilter(''); }}>
-            <option value="">All Teams</option>
-            {teams.map(team => (
-              <option key={team.id} value={team.id}>{team.name}</option>
-            ))}
-          </select>
+          <label>Tags:</label>
+          <TagsDropdown
+            availableTags={getAllTags()}
+            selectedTags={tagFilter}
+            onChange={setTagFilter}
+          />
         </div>
-        <div className="filter-group">
-          <label>Tag:</label>
-          <select value={tagFilter} onChange={(e) => { setTagFilter(e.target.value); setTeamFilter(''); }}>
-            <option value="">All Tags</option>
-            {getAllTags().map(tag => (
-              <option key={tag} value={tag}>{tag}</option>
-            ))}
-          </select>
-        </div>
-        <button onClick={() => fetchData(true)} className="refresh-btn">
-          Refresh
-        </button>
       </div>
 
       <div className="changes-list">
