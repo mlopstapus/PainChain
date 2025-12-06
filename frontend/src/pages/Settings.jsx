@@ -48,6 +48,8 @@ function Settings() {
     tags: ''
   })
   const [fieldVisibility, setFieldVisibility] = useState(getFieldVisibility())
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null)
 
   // Helper to initialize config from connector definition
   const initializeConfig = (connectorType) => {
@@ -103,6 +105,7 @@ function Settings() {
   useEffect(() => {
     if (selectedConnection) {
       setConfig(loadConfigFromConnection(selectedConnection))
+      setTestResult(null)
     }
   }, [selectedConnection])
 
@@ -280,6 +283,63 @@ function Settings() {
     }
   }
 
+  const handleTestConnection = async () => {
+    const connectorType = creatingNew ? newConnectionType : selectedConnection?.type
+    const connectorDef = connectorConfigs[connectorType]
+
+    if (!connectorDef) return
+
+    setTesting(true)
+    setTestResult(null)
+
+    try {
+      // Build config object for test
+      const testConfig = {}
+      connectorDef.fields.forEach(field => {
+        if (field.key !== 'name' && field.key !== 'tags') {
+          let value = config[field.key]
+
+          if (field.key === 'pollInterval') {
+            testConfig['poll_interval'] = parseInt(value) || 300
+          } else if (field.type === 'number') {
+            testConfig[field.key] = parseInt(value) || 0
+          } else {
+            testConfig[field.key] = value
+          }
+        }
+      })
+
+      const response = await fetch(`${API_URL}/api/connections/test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: connectorType,
+          config: testConfig
+        })
+      })
+
+      const result = await response.json()
+      setTestResult(result)
+
+      if (result.success) {
+        showToast(result.message, 'success')
+      } else {
+        showToast(result.message, 'error')
+      }
+    } catch (err) {
+      console.error('Failed to test connection:', err)
+      setTestResult({
+        success: false,
+        message: 'Connection test failed: ' + err.message
+      })
+      showToast('Connection test failed', 'error')
+    } finally {
+      setTesting(false)
+    }
+  }
+
   const handleTeamSave = async () => {
     try {
       setSaving(true)
@@ -358,6 +418,7 @@ function Settings() {
     setNewConnectionType(type)
     setSelectedConnection(null)
     setConfig(initializeConfig(type))
+    setTestResult(null)
   }
 
   const groupConnectionsByType = () => {
@@ -510,6 +571,33 @@ function Settings() {
                     </div>
                   ))
                 })()}
+
+                <button
+                  className="btn-test-connection"
+                  onClick={handleTestConnection}
+                  disabled={testing}
+                  style={{ marginTop: '16px' }}
+                >
+                  {testing ? 'Testing...' : 'Test Connection'}
+                </button>
+
+                {testResult && (
+                  <div className={`test-result ${testResult.success ? 'success' : 'error'}`}>
+                    <span className={testResult.success ? 'test-success-icon' : 'test-error-icon'}>
+                      {testResult.success ? '✓' : '✗'}
+                    </span>
+                    {testResult.message}
+                    {testResult.details && (
+                      <div className="test-details">
+                        {Object.entries(testResult.details).map(([key, value]) => (
+                          <div key={key}>
+                            <strong>{key}:</strong> {value}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {!creatingNew && selectedConnection && (

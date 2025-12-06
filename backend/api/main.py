@@ -36,6 +36,10 @@ class TeamCreate(BaseModel):
 class TeamUpdate(BaseModel):
     tags: str
 
+class ConnectionTest(BaseModel):
+    type: str
+    config: dict
+
 app = FastAPI(title="PainChain API", description="Change Management Aggregator API", version="0.1.0")
 
 # Configure CORS
@@ -334,6 +338,99 @@ async def trigger_sync(connection_id: int, db: Session = Depends(get_db)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to trigger sync: {str(e)}")
+
+
+@app.post("/api/connections/test")
+async def test_connection(test_data: ConnectionTest):
+    """Test a connection configuration without saving it"""
+    try:
+        connector_type = test_data.type
+        config = test_data.config
+
+        if connector_type == 'github':
+            from github import Github, GithubException
+            token = config.get('token', '')
+            if not token:
+                return {"success": False, "message": "GitHub token is required"}
+
+            try:
+                client = Github(token)
+                user = client.get_user()
+                login = user.login
+                return {
+                    "success": True,
+                    "message": f"Connected successfully as {login}",
+                    "details": {
+                        "login": login,
+                        "name": user.name,
+                        "type": user.type
+                    }
+                }
+            except GithubException as e:
+                return {"success": False, "message": f"GitHub authentication failed: {str(e)}"}
+
+        elif connector_type == 'gitlab':
+            import gitlab
+            token = config.get('token', '')
+            if not token:
+                return {"success": False, "message": "GitLab token is required"}
+
+            try:
+                gl = gitlab.Gitlab('https://gitlab.com', private_token=token)
+                gl.auth()
+                user = gl.user
+                return {
+                    "success": True,
+                    "message": f"Connected successfully as {user.username}",
+                    "details": {
+                        "username": user.username,
+                        "name": user.name
+                    }
+                }
+            except Exception as e:
+                return {"success": False, "message": f"GitLab authentication failed: {str(e)}"}
+
+        elif connector_type == 'kubernetes':
+            from kubernetes import client, config as k8s_config
+            api_server = config.get('api_server')
+            token = config.get('token')
+
+            try:
+                if api_server and token:
+                    # Use provided API server and token
+                    configuration = client.Configuration()
+                    configuration.host = api_server
+                    configuration.api_key = {"authorization": f"Bearer {token}"}
+                    configuration.verify_ssl = True
+                    api_client = client.ApiClient(configuration)
+                else:
+                    # Try in-cluster config
+                    try:
+                        k8s_config.load_incluster_config()
+                    except k8s_config.ConfigException:
+                        k8s_config.load_kube_config()
+                    api_client = client.ApiClient()
+
+                # Test connection by listing namespaces
+                v1 = client.CoreV1Api(api_client)
+                namespaces = v1.list_namespace(limit=1)
+
+                return {
+                    "success": True,
+                    "message": f"Connected successfully to Kubernetes cluster",
+                    "details": {
+                        "api_server": api_server or "in-cluster",
+                        "accessible": True
+                    }
+                }
+            except Exception as e:
+                return {"success": False, "message": f"Kubernetes connection failed: {str(e)}"}
+
+        else:
+            return {"success": False, "message": f"Unknown connector type: {connector_type}"}
+
+    except Exception as e:
+        return {"success": False, "message": f"Test failed: {str(e)}"}
 
 
 @app.get("/api/stats")

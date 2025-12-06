@@ -412,6 +412,68 @@
   transform: translateY(-1px);
 }
 
+.btn-test-connection {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  color: #00E8A0;
+  border: 1px solid #00E8A0;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-test-connection:hover:not(:disabled) {
+  background: rgba(0, 232, 160, 0.1);
+}
+
+.btn-test-connection:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.test-result {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.test-result.success {
+  background: rgba(0, 232, 160, 0.1);
+  border: 1px solid rgba(0, 232, 160, 0.3);
+  color: #00E8A0;
+}
+
+.test-result.error {
+  background: rgba(255, 107, 122, 0.1);
+  border: 1px solid rgba(255, 107, 122, 0.3);
+  color: #ff6b7a;
+}
+
+.test-success-icon,
+.test-error-icon {
+  font-weight: 700;
+  font-size: 1.1em;
+}
+
+.test-details {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.test-details div {
+  margin-bottom: 4px;
+}
+
 /* Create Team Form */
 .create-team-form {
   background: #1a1f2e;
