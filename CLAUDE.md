@@ -34,3 +34,7 @@ I## Keep dependencies current
 * Ensure both new and existing functionality behave as expected.
 
 ## Follow existing code patterns where possible
+
+## Documentation
+* Always check to see if the documentation needs updated for a particular directory whe changes have been made.
+* Do not create unnecessary markdown files unless sticking to an existing pattern. (i.e. all connectors should have a parent README.md)
