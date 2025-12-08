@@ -1,29 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import '../Settings.css'
-import githubLogo from '../assets/logos/github.png'
-import gitlabLogo from '../assets/logos/gitlab.png'
-import kubernetesLogo from '../assets/logos/kubernetes.png'
-import painchainLogo from '../assets/logos/painchain_transparent.png'
 import { getFieldVisibility, toggleField, resetToDefaults, FIELD_LABELS, EVENT_TYPE_NAMES } from '../utils/fieldVisibility'
 import { useToast } from '../components/Toast'
+import { getConnectorTypes, getConnectorLogoUrl } from '../utils/connectorMetadata'
 import connectorConfigs from '../config/connectorConfigs.json'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-
-const connectorLogos = {
-  github: githubLogo,
-  gitlab: gitlabLogo,
-  kubernetes: kubernetesLogo,
-  painchain: painchainLogo,
-}
-
-const CONNECTOR_TYPES = [
-  { id: 'github', name: 'GitHub' },
-  { id: 'gitlab', name: 'GitLab' },
-  { id: 'kubernetes', name: 'Kubernetes' },
-  { id: 'painchain', name: 'PainChain' },
-]
 
 // Map connector types to their event types
 const CONNECTOR_EVENT_TYPES = {
@@ -55,6 +38,16 @@ function Settings() {
   const [initialFieldVisibility, setInitialFieldVisibility] = useState(getFieldVisibility())
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
+  const [connectorTypes, setConnectorTypes] = useState([])
+
+  // Load connector types on mount
+  useEffect(() => {
+    const loadTypes = async () => {
+      const types = await getConnectorTypes()
+      setConnectorTypes(types)
+    }
+    loadTypes()
+  }, [])
 
   // Helper to initialize config from connector definition
   const initializeConfig = (connectorType) => {
@@ -599,7 +592,7 @@ function Settings() {
 
   const groupConnectionsByType = () => {
     const grouped = {}
-    CONNECTOR_TYPES.forEach(type => {
+    connectorTypes.forEach(type => {
       const typeConnections = connections.filter(c => c.type === type.id)
       // Sort alphabetically by name
       grouped[type.id] = typeConnections.sort((a, b) => a.name.localeCompare(b.name))
@@ -659,15 +652,13 @@ function Settings() {
             <p>Loading connections...</p>
           ) : (
             <>
-              {CONNECTOR_TYPES.map(connectorType => {
+              {connectorTypes.map(connectorType => {
                 const typeConnections = groupConnectionsByType()[connectorType.id]
                 return (
                   <div key={connectorType.id} className="connector-type-group">
                     <div className="connector-type-header">
                       <div className="connector-type-info">
-                        {connectorLogos[connectorType.id] && (
-                          <img src={connectorLogos[connectorType.id]} alt={connectorType.name} className="connector-type-logo" />
-                        )}
+                        <img src={getConnectorLogoUrl(connectorType.id)} alt={connectorType.name} className="connector-type-logo" />
                         <h3>{connectorType.name}</h3>
                       </div>
                       <button className="btn-add-connection" onClick={() => handleCreateNew(connectorType.id)}>
@@ -717,7 +708,7 @@ function Settings() {
             <div className="detail-header">
               <button className="back-btn" onClick={() => { setSelectedConnection(null); setCreatingNew(false); }}>×</button>
               <div className="detail-header-content">
-                <h3>{creatingNew ? `New ${CONNECTOR_TYPES.find(t => t.id === newConnectionType)?.name} Connection` : selectedConnection.name}</h3>
+                <h3>{creatingNew ? `New ${connectorTypes.find(t => t.id === newConnectionType)?.name} Connection` : selectedConnection.name}</h3>
                 {!creatingNew && selectedConnection && (
                   <label className="toggle-inline-header" onClick={(e) => e.stopPropagation()}>
                     <input

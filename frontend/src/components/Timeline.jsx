@@ -1,16 +1,9 @@
 import { useState, useEffect } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceArea, ReferenceLine } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea, ReferenceLine } from 'recharts'
 import './Timeline.css'
+import { getAllConnectorColors } from '../utils/connectorMetadata'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-
-// Color scheme matching the app theme
-const COLORS = {
-  github: '#00E8A0',
-  gitlab: '#fc6d26',
-  kubernetes: '#326ce5',
-  painchain: '#9f7aea'
-}
 
 function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChange }) {
   const [timelineData, setTimelineData] = useState([])
@@ -19,6 +12,21 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
   const [interval, setInterval] = useState('hour')
   const [selectionStart, setSelectionStart] = useState(null)
   const [hoverIndex, setHoverIndex] = useState(null)
+  const [colors, setColors] = useState({
+    github: '#00E8A0',
+    gitlab: '#fc6d26',
+    kubernetes: '#326ce5',
+    painchain: '#9f7aea'
+  })
+
+  // Load connector colors on mount
+  useEffect(() => {
+    const loadColors = async () => {
+      const connectorColors = await getAllConnectorColors()
+      setColors(connectorColors)
+    }
+    loadColors()
+  }, [])
 
   useEffect(() => {
     const fetchTimeline = async () => {
@@ -211,7 +219,7 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
         <div className="timeline-stats">
           {Object.entries(stats).sort(([a], [b]) => a.localeCompare(b)).map(([source, count]) => (
             <div key={source} className="timeline-stat">
-              <span className="stat-dot" style={{ backgroundColor: COLORS[source] }}></span>
+              <span className="stat-dot" style={{ backgroundColor: colors[source] }}></span>
               <span className="stat-label">{source}: {count}</span>
             </div>
           ))}
@@ -279,7 +287,7 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
               dataKey="github"
               stackId="a"
               name="GitHub"
-              fill={COLORS.github}
+              fill={colors.github}
               radius={[8, 8, 0, 0]}
               onClick={(data, index) => {
                 // Only treat as direct bar click if there's actual data
@@ -295,7 +303,7 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
               dataKey="gitlab"
               stackId="a"
               name="GitLab"
-              fill={COLORS.gitlab}
+              fill={colors.gitlab}
               radius={[8, 8, 0, 0]}
               onClick={(data, index) => {
                 if (data && data.gitlab > 0) {
@@ -310,7 +318,7 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
               dataKey="kubernetes"
               stackId="a"
               name="Kubernetes"
-              fill={COLORS.kubernetes}
+              fill={colors.kubernetes}
               radius={[8, 8, 0, 0]}
               onClick={(data, index) => {
                 if (data && data.kubernetes > 0) {
@@ -325,7 +333,7 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
               dataKey="painchain"
               stackId="a"
               name="PainChain"
-              fill={COLORS.painchain}
+              fill={colors.painchain}
               radius={[8, 8, 0, 0]}
               onClick={(data, index) => {
                 if (data && data.painchain > 0) {

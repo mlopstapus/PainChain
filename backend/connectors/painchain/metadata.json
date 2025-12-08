@@ -1,0 +1,7 @@
+{
+  "id": "painchain",
+  "displayName": "PainChain",
+  "color": "#9f7aea",
+  "logo": "painchain_transparent.png",
+  "description": "Internal system connector that tracks configuration changes and connector management actions"
+}

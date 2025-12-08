@@ -1,13 +1,20 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from pydantic import BaseModel
 import sys
+import os
+import json
+from pathlib import Path
 sys.path.insert(0, '/app')
 
 from shared import get_db, ChangeEvent, Connection, Team
+
+# Connector metadata directory
+CONNECTORS_DIR = Path("/app/connectors")
 
 # Pydantic models for request/response
 class ConnectionConfig(BaseModel):
@@ -109,6 +116,66 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+
+@app.get("/api/connectors/metadata")
+async def get_connectors_metadata():
+    """Get metadata for all available connectors"""
+    metadata = []
+
+    if not CONNECTORS_DIR.exists():
+        return metadata
+
+    for connector_dir in CONNECTORS_DIR.iterdir():
+        if not connector_dir.is_dir():
+            continue
+
+        metadata_file = connector_dir / "metadata.json"
+        if not metadata_file.exists():
+            continue
+
+        try:
+            with open(metadata_file, 'r') as f:
+                connector_metadata = json.load(f)
+                metadata.append(connector_metadata)
+        except Exception as e:
+            print(f"Failed to load metadata for {connector_dir.name}: {e}")
+            continue
+
+    return metadata
+
+
+@app.get("/api/connectors/{connector_id}/logo")
+async def get_connector_logo(connector_id: str):
+    """Get logo for a specific connector"""
+    connector_dir = CONNECTORS_DIR / connector_id
+
+    if not connector_dir.exists():
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # Read metadata to get logo filename
+    metadata_file = connector_dir / "metadata.json"
+    if not metadata_file.exists():
+        raise HTTPException(status_code=404, detail="Connector metadata not found")
+
+    try:
+        with open(metadata_file, 'r') as f:
+            metadata = json.load(f)
+            logo_filename = metadata.get('logo')
+
+            if not logo_filename:
+                raise HTTPException(status_code=404, detail="Logo not specified in metadata")
+
+            logo_path = connector_dir / logo_filename
+
+            if not logo_path.exists():
+                raise HTTPException(status_code=404, detail="Logo file not found")
+
+            return FileResponse(logo_path)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Invalid metadata file")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/changes", response_model=List[dict])

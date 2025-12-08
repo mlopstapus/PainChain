@@ -1,0 +1,7 @@
+{
+  "id": "kubernetes",
+  "displayName": "Kubernetes",
+  "color": "#326ce5",
+  "logo": "kubernetes.png",
+  "description": "Track deployments, statefulsets, daemonsets, services, configmaps, secrets, and ingresses from Kubernetes clusters"
+}

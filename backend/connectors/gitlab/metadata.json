@@ -1,0 +1,7 @@
+{
+  "id": "gitlab",
+  "displayName": "GitLab",
+  "color": "#fc6d26",
+  "logo": "gitlab.png",
+  "description": "Track merge requests, releases, pipeline runs, and commits from GitLab projects"
+}

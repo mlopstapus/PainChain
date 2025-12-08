@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
+import { useEffect } from 'react'
 import './App.css'
 import './Settings.css'
 import logo from './assets/logos/painchain_transparent.png'
@@ -6,8 +7,14 @@ import githubLogo from './assets/logos/github.png'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
 import { ToastProvider } from './components/Toast'
+import { injectConnectorStyles } from './utils/connectorMetadata'
 
 function App() {
+  // Inject dynamic connector styles on mount
+  useEffect(() => {
+    injectConnectorStyles()
+  }, [])
+
   return (
     <ToastProvider>
       <Router>
