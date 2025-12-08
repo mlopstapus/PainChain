@@ -39,6 +39,7 @@ function Settings() {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
   const [connectorTypes, setConnectorTypes] = useState([])
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Load connector types on mount
   useEffect(() => {
@@ -592,8 +593,20 @@ function Settings() {
 
   const groupConnectionsByType = () => {
     const grouped = {}
+    const query = searchQuery.toLowerCase()
+
     connectorTypes.forEach(type => {
-      const typeConnections = connections.filter(c => c.type === type.id)
+      let typeConnections = connections.filter(c => c.type === type.id)
+
+      // Apply search filter if query exists
+      if (query) {
+        typeConnections = typeConnections.filter(c => {
+          const matchesName = c.name.toLowerCase().includes(query)
+          const matchesType = type.name.toLowerCase().includes(query)
+          return matchesName || matchesType
+        })
+      }
+
       // Sort alphabetically by name
       grouped[type.id] = typeConnections.sort((a, b) => a.name.localeCompare(b.name))
     })
@@ -648,12 +661,55 @@ function Settings() {
                 <p>Configure your data source connections</p>
               </div>
 
+              <div className="search-container">
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="Search by connection name or type..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    className="search-clear-btn"
+                    onClick={() => setSearchQuery('')}
+                    title="Clear search"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
           {loading ? (
             <p>Loading connections...</p>
           ) : (
             <>
+              {(() => {
+                const hasResults = connectorTypes.some(type => {
+                  const typeConnections = groupConnectionsByType()[type.id]
+                  return typeConnections.length > 0 || !searchQuery
+                })
+
+                if (searchQuery && !hasResults) {
+                  return (
+                    <div className="no-results">
+                      <p>No connections found matching "{searchQuery}"</p>
+                      <p className="no-results-hint">Try a different search term or clear the search to see all connections.</p>
+                    </div>
+                  )
+                }
+
+                return null
+              })()}
+
               {connectorTypes.map(connectorType => {
                 const typeConnections = groupConnectionsByType()[connectorType.id]
+
+                // Hide connector type groups with no matches when searching
+                if (searchQuery && typeConnections.length === 0) {
+                  return null
+                }
+
                 return (
                   <div key={connectorType.id} className="connector-type-group">
                     <div className="connector-type-header">
