@@ -13,11 +13,30 @@
   margin-bottom: 16px;
 }
 
+.timeline-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .timeline-header h3 {
   margin: 0;
   font-size: 0.95em;
   font-weight: 600;
   color: #e1e4e8;
+}
+
+.timeline-range {
+  font-size: 0.75em;
+  color: #808080;
+  font-weight: 400;
+}
+
+.timeline-instruction {
+  font-size: 0.75em;
+  color: #00E8A0;
+  font-weight: 500;
+  font-style: italic;
 }
 
 .timeline-stats {

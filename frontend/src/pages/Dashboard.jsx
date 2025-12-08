@@ -778,17 +778,16 @@ function Dashboard() {
   const [sourceFilter, setSourceFilter] = useState('')
   const [tagFilter, setTagFilter] = useState([])
 
-  // Set default dates to today
+  // Set default dates to last 24 hours (matching Timeline default)
   const getDefaultStartDate = () => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    return today.toISOString()
+    const now = new Date()
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    return yesterday.toISOString()
   }
 
   const getDefaultEndDate = () => {
-    const today = new Date()
-    today.setHours(23, 59, 59, 999)
-    return today.toISOString()
+    const now = new Date()
+    return now.toISOString()
   }
 
   const [startDate, setStartDate] = useState(getDefaultStartDate())

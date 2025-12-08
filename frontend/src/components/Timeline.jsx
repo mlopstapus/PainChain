@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceArea, ReferenceLine } from 'recharts'
 import './Timeline.css'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -16,6 +16,8 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState(null)
   const [interval, setInterval] = useState('hour')
+  const [selectionStart, setSelectionStart] = useState(null)
+  const [hoverIndex, setHoverIndex] = useState(null)
 
   useEffect(() => {
     const fetchTimeline = async () => {
@@ -46,22 +48,74 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
     fetchTimeline()
   }, [sourceFilter, startDate, endDate, tagFilter])
 
-  const handleBarClick = (data) => {
-    if (!data || !onTimeRangeChange) return
+  const handleBarClick = (data, index) => {
+    if (!onTimeRangeChange || !data) return
 
-    const clickedTime = new Date(data.time)
+    // Direct bar click - filter to just this bar's time range
+    const bin = timelineData[index]
+    if (!bin) return
 
-    // Calculate bin width
-    let binWidth = 60000 // default 1 minute
+    const startTime = new Date(bin.time)
+    const endTime = new Date(bin.time)
+
+    // Add bin width to get end time
     if (timelineData.length > 1) {
-      binWidth = new Date(timelineData[1].time) - new Date(timelineData[0].time)
+      const binWidth = new Date(timelineData[1].time) - new Date(timelineData[0].time)
+      endTime.setTime(endTime.getTime() + binWidth)
     }
 
-    // Set time range to just this bin
-    const startTime = new Date(clickedTime)
-    const endTime = new Date(clickedTime.getTime() + binWidth)
-
+    setSelectionStart(null)
     onTimeRangeChange(startTime.toISOString(), endTime.toISOString())
+  }
+
+  const handleChartClick = (e) => {
+    if (!onTimeRangeChange) return
+
+    // Get the index of the clicked position
+    const clickedIndex = e?.activeTooltipIndex
+
+    // If we clicked on a specific position
+    if (clickedIndex !== undefined && clickedIndex !== null) {
+      // If no selection started, this is the first click
+      if (selectionStart === null) {
+        setSelectionStart(clickedIndex)
+        return
+      }
+
+      // If selection started, this is the second click - apply the range
+      const startIndex = Math.min(selectionStart, clickedIndex)
+      const endIndex = Math.max(selectionStart, clickedIndex)
+
+      const startBin = timelineData[startIndex]
+      const endBin = timelineData[endIndex]
+
+      if (startBin && endBin) {
+        const startTime = new Date(startBin.time)
+        const endTime = new Date(endBin.time)
+
+        // For the end time, add the bin width to include the full last bin
+        if (timelineData.length > 1) {
+          const binWidth = new Date(timelineData[1].time) - new Date(timelineData[0].time)
+          endTime.setTime(endTime.getTime() + binWidth)
+        }
+
+        setSelectionStart(null)
+        onTimeRangeChange(startTime.toISOString(), endTime.toISOString())
+      }
+    } else {
+      // Clicked outside any position - clear selection
+      setSelectionStart(null)
+    }
+  }
+
+  const handleMouseMove = (e) => {
+    if (e && e.activeTooltipIndex !== undefined) {
+      setHoverIndex(e.activeTooltipIndex)
+    }
+  }
+
+  const handleMouseLeave = () => {
+    setHoverIndex(null)
   }
 
   const formatXAxis = (timestamp) => {
@@ -128,7 +182,31 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
   return (
     <div className="timeline-container">
       <div className="timeline-header">
-        <h3>Events Timeline</h3>
+        <div className="timeline-title">
+          <h3>Events Timeline</h3>
+          {safeTimelineData.length > 0 && (
+            <span className="timeline-range">
+              {new Date(safeTimelineData[0].time).toLocaleString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+              {' → '}
+              {new Date(safeTimelineData[safeTimelineData.length - 1].time).toLocaleString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </span>
+          )}
+          {selectionStart !== null && (
+            <span className="timeline-instruction">
+              Click again to set time range (or click outside to cancel)
+            </span>
+          )}
+        </div>
         <div className="timeline-stats">
           {Object.entries(stats).sort(([a], [b]) => a.localeCompare(b)).map(([source, count]) => (
             <div key={source} className="timeline-stat">
@@ -142,8 +220,10 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
         <BarChart
           data={safeTimelineData}
           margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
-          barSize={20}
-          barCategoryGap={1}
+          barCategoryGap="1%"
+          onClick={handleChartClick}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#2a3142" />
           <XAxis
@@ -161,14 +241,51 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
             allowDecimals={false}
           />
           <Tooltip content={<CustomTooltip />} />
+
+          {/* Cursor line */}
+          {hoverIndex !== null && selectionStart === null && (
+            <ReferenceLine
+              x={safeTimelineData[hoverIndex]?.time}
+              stroke="#00E8A0"
+              strokeWidth={2}
+              strokeDasharray="3 3"
+            />
+          )}
+
+          {/* Selection start line */}
+          {selectionStart !== null && (
+            <ReferenceLine
+              x={safeTimelineData[selectionStart]?.time}
+              stroke="#00FF00"
+              strokeWidth={2}
+            />
+          )}
+
+          {/* Highlighted region when selecting */}
+          {selectionStart !== null && hoverIndex !== null && (
+            <ReferenceArea
+              x1={safeTimelineData[Math.min(selectionStart, hoverIndex)]?.time}
+              x2={safeTimelineData[Math.max(selectionStart, hoverIndex)]?.time}
+              fill="#00E8A0"
+              fillOpacity={0.2}
+              strokeOpacity={0.8}
+              stroke="#00E8A0"
+            />
+          )}
+
           {stats.github !== undefined && (
             <Bar
               dataKey="github"
               stackId="a"
-              fill={COLORS.github}
               name="GitHub"
+              fill={COLORS.github}
               radius={[8, 8, 0, 0]}
-              onClick={handleBarClick}
+              onClick={(data, index) => {
+                // Only treat as direct bar click if there's actual data
+                if (data && data.github > 0) {
+                  handleBarClick(data, index)
+                }
+              }}
               cursor="pointer"
             />
           )}
@@ -176,10 +293,14 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
             <Bar
               dataKey="gitlab"
               stackId="a"
-              fill={COLORS.gitlab}
               name="GitLab"
+              fill={COLORS.gitlab}
               radius={[8, 8, 0, 0]}
-              onClick={handleBarClick}
+              onClick={(data, index) => {
+                if (data && data.gitlab > 0) {
+                  handleBarClick(data, index)
+                }
+              }}
               cursor="pointer"
             />
           )}
@@ -187,10 +308,14 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
             <Bar
               dataKey="kubernetes"
               stackId="a"
-              fill={COLORS.kubernetes}
               name="Kubernetes"
+              fill={COLORS.kubernetes}
               radius={[8, 8, 0, 0]}
-              onClick={handleBarClick}
+              onClick={(data, index) => {
+                if (data && data.kubernetes > 0) {
+                  handleBarClick(data, index)
+                }
+              }}
               cursor="pointer"
             />
           )}
