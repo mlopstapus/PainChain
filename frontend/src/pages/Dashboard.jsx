@@ -1,22 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import githubLogo from '../assets/logos/github.png'
-import gitlabLogo from '../assets/logos/gitlab.png'
-import kubernetesLogo from '../assets/logos/kubernetes.png'
-import painchainLogo from '../assets/logos/painchain_transparent.png'
 import DateTimePicker from '../components/DateTimePicker'
 import TagsDropdown from '../components/TagsDropdown'
 import Timeline from '../components/Timeline'
 import { isFieldVisible } from '../utils/fieldVisibility'
+import { getConnectorLogoUrl } from '../utils/connectorMetadata'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-
-const connectorLogos = {
-  github: githubLogo,
-  gitlab: gitlabLogo,
-  kubernetes: kubernetesLogo,
-  painchain: painchainLogo,
-}
 
 /**
  * Extensible event type configuration
@@ -1397,16 +1387,14 @@ function Dashboard() {
                   <div key={change.id} className="change-card">
                     <div className="change-header">
                       <div className="change-badges">
-                        {connectorLogos[change.source] && (
-                          <img
-                            src={connectorLogos[change.source]}
-                            alt={`${change.source} logo`}
-                            className="connector-logo clickable"
-                            onClick={() => navigateToConnection(change)}
-                            style={{ cursor: 'pointer' }}
-                            title="Go to connection settings"
-                          />
-                        )}
+                        <img
+                          src={getConnectorLogoUrl(change.source)}
+                          alt={`${change.source} logo`}
+                          className="connector-logo clickable"
+                          onClick={() => navigateToConnection(change)}
+                          style={{ cursor: 'pointer' }}
+                          title="Go to connection settings"
+                        />
                         <span className={`source-badge ${change.source}`}>{change.source}</span>
                       </div>
                       <div className="change-meta">
