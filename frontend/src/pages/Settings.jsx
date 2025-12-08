@@ -4,6 +4,7 @@ import '../Settings.css'
 import githubLogo from '../assets/logos/github.png'
 import gitlabLogo from '../assets/logos/gitlab.png'
 import kubernetesLogo from '../assets/logos/kubernetes.png'
+import painchainLogo from '../assets/logos/painchain_transparent.png'
 import { getFieldVisibility, toggleField, resetToDefaults, FIELD_LABELS, EVENT_TYPE_NAMES } from '../utils/fieldVisibility'
 import { useToast } from '../components/Toast'
 import connectorConfigs from '../config/connectorConfigs.json'
@@ -14,19 +15,22 @@ const connectorLogos = {
   github: githubLogo,
   gitlab: gitlabLogo,
   kubernetes: kubernetesLogo,
+  painchain: painchainLogo,
 }
 
 const CONNECTOR_TYPES = [
   { id: 'github', name: 'GitHub' },
   { id: 'gitlab', name: 'GitLab' },
   { id: 'kubernetes', name: 'Kubernetes' },
+  { id: 'painchain', name: 'PainChain' },
 ]
 
 // Map connector types to their event types
 const CONNECTOR_EVENT_TYPES = {
   github: ['PR', 'Workflow', 'Commit', 'Release'],
   gitlab: ['MR', 'Pipeline', 'Commit', 'Release'],
-  kubernetes: ['K8sDeployment', 'K8sStatefulSet', 'K8sDaemonSet', 'K8sService', 'K8sConfigMap', 'K8sSecret', 'K8sIngress']
+  kubernetes: ['K8sDeployment', 'K8sStatefulSet', 'K8sDaemonSet', 'K8sService', 'K8sConfigMap', 'K8sSecret', 'K8sIngress'],
+  painchain: ['ConnectorCreated', 'ConnectorUpdated', 'ConnectorDeleted', 'ConnectorEnabled', 'ConnectorDisabled', 'ConfigChanged', 'FieldVisibilityChanged']
 }
 
 function Settings() {
@@ -48,6 +52,7 @@ function Settings() {
     tags: ''
   })
   const [fieldVisibility, setFieldVisibility] = useState(getFieldVisibility())
+  const [initialFieldVisibility, setInitialFieldVisibility] = useState(getFieldVisibility())
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
 
@@ -60,6 +65,8 @@ function Settings() {
     connectorDef.fields.forEach(field => {
       if (field.type === 'checkbox') {
         initialConfig[field.key] = field.default === true || field.default === 'true'
+      } else if (field.type === 'checkbox-group') {
+        initialConfig[field.key] = field.default || []
       } else {
         initialConfig[field.key] = field.default || ''
       }
@@ -82,6 +89,8 @@ function Settings() {
         // Handle boolean values properly
         const value = connection.config?.[field.key]
         loadedConfig[field.key] = value === true || value === 'true' || field.default === true
+      } else if (field.type === 'checkbox-group') {
+        loadedConfig[field.key] = connection.config?.[field.key] || field.default || []
       } else {
         loadedConfig[field.key] = connection.config?.[field.key] || field.default || ''
       }
@@ -104,6 +113,8 @@ function Settings() {
       if (connection) {
         setSelectedConnection(connection)
         setConfig(loadConfigFromConnection(connection))
+        // Capture initial field visibility state
+        setInitialFieldVisibility(getFieldVisibility())
       }
       // Clear the navigation state
       navigate(location.pathname, { replace: true, state: {} })
@@ -154,6 +165,23 @@ function Settings() {
     }
   }
 
+  const logPainChainEvent = async (eventType, eventData) => {
+    try {
+      await fetch(`${API_URL}/api/painchain/log`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event_type: eventType,
+          ...eventData
+        })
+      })
+    } catch (err) {
+      console.error('Failed to log PainChain event:', err)
+    }
+  }
+
   const handleToggleEnabled = async (connection, enabled) => {
     try {
       const response = await fetch(`${API_URL}/api/connections/${connection.id}`, {
@@ -179,6 +207,15 @@ function Settings() {
         if (selectedConnection && selectedConnection.id === connection.id) {
           setSelectedConnection({...selectedConnection, enabled: enabled})
         }
+
+        // Log PainChain event
+        await logPainChainEvent(
+          enabled ? 'connector_enabled' : 'connector_disabled',
+          {
+            connector_name: connection.name,
+            connector_type: connection.type
+          }
+        )
       } else {
         showToast('Failed to update connection', 'error')
       }
@@ -238,6 +275,12 @@ function Settings() {
           setNewConnectionType('')
           setConfig({})
           showToast('Connection created successfully!')
+
+          // Log PainChain event
+          await logPainChainEvent('connector_created', {
+            connector_name: config.name,
+            connector_type: newConnectionType
+          })
         } else {
           showToast('Failed to create connection', 'error')
         }
@@ -259,6 +302,115 @@ function Settings() {
         if (response.ok) {
           await fetchConnections()
           showToast('Configuration saved successfully!')
+
+          // Log PainChain event for all connector updates
+          // Detect changes
+          const changes = {}
+
+          // Helper to compare values (handles arrays)
+          const valuesEqual = (a, b) => {
+            // Exact match
+            if (a === b) return true
+
+            // Treat undefined, null, empty string, and empty array as equivalent
+            const isEmpty = (val) =>
+              val === undefined ||
+              val === null ||
+              val === '' ||
+              (Array.isArray(val) && val.length === 0)
+
+            if (isEmpty(a) && isEmpty(b)) return true
+
+            // Array comparison
+            if (Array.isArray(a) && Array.isArray(b)) {
+              if (a.length !== b.length) return false
+              return a.every((val, idx) => val === b[idx])
+            }
+
+            return false
+          }
+
+          if (selectedConnection.name !== config.name) {
+            changes.name = { old: selectedConnection.name, new: config.name }
+          }
+          if (selectedConnection.tags !== config.tags) {
+            changes.tags = { old: selectedConnection.tags, new: config.tags }
+          }
+          // Check config changes
+          Object.keys(apiConfig).forEach(key => {
+            const oldValue = selectedConnection.config?.[key]
+            const newValue = apiConfig[key]
+
+            // Skip if both are undefined/null/empty
+            if ((oldValue === undefined || oldValue === null) &&
+                (newValue === undefined || newValue === null)) {
+              return
+            }
+
+            // Skip if old is undefined/null and new matches the default from config
+            // (This happens when connection was created before field defaults were added)
+            if ((oldValue === undefined || oldValue === null)) {
+              const fieldDef = connectorDef.fields.find(f => f.key === key)
+              if (fieldDef && valuesEqual(newValue, fieldDef.default)) {
+                return
+              }
+            }
+
+            if (!valuesEqual(oldValue, newValue)) {
+              changes[key] = { old: oldValue, new: newValue }
+            }
+          })
+
+          // Check field visibility changes
+          const visibilityChanges = []
+          const allEventTypes = new Set([
+            ...Object.keys(initialFieldVisibility),
+            ...Object.keys(fieldVisibility)
+          ])
+
+          allEventTypes.forEach(eventType => {
+            const allFieldKeys = new Set([
+              ...Object.keys(initialFieldVisibility[eventType] || {}),
+              ...Object.keys(fieldVisibility[eventType] || {})
+            ])
+
+            allFieldKeys.forEach(fieldKey => {
+              const oldVisible = initialFieldVisibility[eventType]?.[fieldKey] !== false
+              const newVisible = fieldVisibility[eventType]?.[fieldKey] !== false
+              if (oldVisible !== newVisible) {
+                visibilityChanges.push({
+                  event_type: eventType,
+                  field: fieldKey,
+                  old: oldVisible,
+                  new: newVisible
+                })
+              }
+            })
+          })
+
+          // Add visibility changes to the changes object
+          if (visibilityChanges.length > 0) {
+            changes.field_visibility = {
+              old: visibilityChanges.map(v => {
+                const eventTypeName = EVENT_TYPE_NAMES[v.event_type] || v.event_type
+                const fieldLabel = FIELD_LABELS[v.event_type]?.[v.field] || v.field
+                return `${eventTypeName} - ${fieldLabel}: ${v.old ? 'visible' : 'hidden'}`
+              }),
+              new: visibilityChanges.map(v => {
+                const eventTypeName = EVENT_TYPE_NAMES[v.event_type] || v.event_type
+                const fieldLabel = FIELD_LABELS[v.event_type]?.[v.field] || v.field
+                return `${eventTypeName} - ${fieldLabel}: ${v.new ? 'visible' : 'hidden'}`
+              })
+            }
+          }
+
+          if (Object.keys(changes).length > 0) {
+            await logPainChainEvent('connector_updated', {
+              connector_name: config.name,
+              connector_type: selectedConnection.type,
+              changes: changes
+            })
+          }
         } else {
           showToast('Failed to save configuration', 'error')
         }
@@ -276,6 +428,10 @@ function Settings() {
     if (!confirm('Are you sure you want to delete this connection?')) return
 
     try {
+      // Store connection details before deletion
+      const connectionName = selectedConnection.name
+      const connectionType = selectedConnection.type
+
       const response = await fetch(`${API_URL}/api/connections/${selectedConnection.id}`, {
         method: 'DELETE'
       })
@@ -284,6 +440,12 @@ function Settings() {
         await fetchConnections()
         setSelectedConnection(null)
         showToast('Connection deleted successfully!')
+
+        // Log PainChain event
+        await logPainChainEvent('connector_deleted', {
+          connector_name: connectionName,
+          connector_type: connectionType
+        })
       } else {
         showToast('Failed to delete connection', 'error')
       }
@@ -431,6 +593,8 @@ function Settings() {
     setSelectedConnection(null)
     setConfig(initializeConfig(type))
     setTestResult(null)
+    // Capture initial field visibility state
+    setInitialFieldVisibility(getFieldVisibility())
   }
 
   const groupConnectionsByType = () => {
@@ -526,7 +690,14 @@ function Settings() {
                               </span>
                               <button
                                 className="btn-edit-connection"
-                                onClick={() => { setSelectedConnection(connection); setCreatingNew(false); }}
+                                onClick={() => {
+                                  setSelectedConnection(connection)
+                                  setConfig(loadConfigFromConnection(connection))
+                                  setCreatingNew(false)
+                                  setTestResult(null)
+                                  // Capture initial field visibility state
+                                  setInitialFieldVisibility(getFieldVisibility())
+                                }}
                               >
                                 Edit
                               </button>
@@ -589,6 +760,35 @@ function Settings() {
                             <span className="checkbox-toggle"></span>
                           </label>
                           {field.help && <span className="form-help">{field.help}</span>}
+                        </div>
+                      )
+                    }
+
+                    // Render checkbox-group fields
+                    if (field.type === 'checkbox-group') {
+                      const selectedValues = Array.isArray(config[field.key]) ? config[field.key] : []
+
+                      return (
+                        <div key={field.key} className="form-group">
+                          <label>{field.label}</label>
+                          {field.help && <span className="form-help" style={{ marginBottom: '8px', display: 'block' }}>{field.help}</span>}
+                          <div className="checkbox-group">
+                            {field.options?.map((option) => (
+                              <label key={option.value} className="checkbox-group-item">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedValues.includes(option.value)}
+                                  onChange={(e) => {
+                                    const newValues = e.target.checked
+                                      ? [...selectedValues, option.value]
+                                      : selectedValues.filter(v => v !== option.value)
+                                    setConfig({...config, [field.key]: newValues})
+                                  }}
+                                />
+                                <span>{option.label}</span>
+                              </label>
+                            ))}
+                          </div>
                         </div>
                       )
                     }

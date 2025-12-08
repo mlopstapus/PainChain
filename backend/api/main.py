@@ -40,6 +40,19 @@ class ConnectionTest(BaseModel):
     type: str
     config: dict
 
+class PainChainLogEvent(BaseModel):
+    event_type: str
+    connector_name: str = ""
+    connector_type: str = ""
+    changes: dict = {}
+    field: str = ""
+    old_value: str = ""
+    new_value: str = ""
+    # For field visibility changes
+    field_key: str = ""
+    visible: bool = True
+    author: str = "system"
+
 app = FastAPI(title="PainChain API", description="Change Management Aggregator API", version="0.1.0")
 
 # Configure CORS
@@ -50,6 +63,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize PainChain connector on application startup"""
+    from shared.database import SessionLocal
+    db = SessionLocal()
+    try:
+        # Check if PainChain connector already exists
+        painchain_connection = db.query(Connection).filter(
+            Connection.type == "painchain"
+        ).first()
+
+        if not painchain_connection:
+            # Create default PainChain connection
+            painchain_connection = Connection(
+                name="PainChain System",
+                type="painchain",
+                enabled=True,
+                config={},
+                tags="system,audit"
+            )
+            db.add(painchain_connection)
+            db.commit()
+            print("✅ PainChain connector initialized on startup")
+        else:
+            print("✅ PainChain connector already exists")
+    except Exception as e:
+        print(f"❌ Failed to initialize PainChain connector: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 
 @app.get("/")
@@ -434,11 +479,125 @@ async def test_connection(test_data: ConnectionTest):
             except Exception as e:
                 return {"success": False, "message": f"Kubernetes connection failed: {str(e)}"}
 
+        elif connector_type == 'painchain':
+            # PainChain connector always succeeds (internal logging)
+            return {
+                "success": True,
+                "message": "PainChain connector is ready",
+                "details": {
+                    "type": "internal"
+                }
+            }
+
         else:
             return {"success": False, "message": f"Unknown connector type: {connector_type}"}
 
     except Exception as e:
         return {"success": False, "message": f"Test failed: {str(e)}"}
+
+
+@app.post("/api/painchain/log")
+async def log_painchain_event(
+    event_data: PainChainLogEvent,
+    db: Session = Depends(get_db)
+):
+    """Log a PainChain event (internal system events)"""
+    try:
+        # Get PainChain connection (should always exist after startup)
+        painchain_connection = db.query(Connection).filter(
+            Connection.type == "painchain"
+        ).first()
+
+        if not painchain_connection:
+            raise HTTPException(status_code=500, detail="PainChain connector not initialized")
+
+        # Import PainChain connector
+        from connectors.painchain.connector import PainChainConnector
+
+        # Initialize connector
+        connector = PainChainConnector()
+
+        # Log the appropriate event type
+        event_type = event_data.event_type
+        success = False
+
+        if event_type == "connector_created":
+            success = connector.log_connector_created(
+                db_session=db,
+                connection_id=painchain_connection.id,
+                connector_name=event_data.connector_name,
+                connector_type=event_data.connector_type,
+                author=event_data.author
+            )
+        elif event_type == "connector_updated":
+            success = connector.log_connector_updated(
+                db_session=db,
+                connection_id=painchain_connection.id,
+                connector_name=event_data.connector_name,
+                connector_type=event_data.connector_type,
+                changes=event_data.changes,
+                author=event_data.author
+            )
+        elif event_type == "connector_deleted":
+            success = connector.log_connector_deleted(
+                db_session=db,
+                connection_id=painchain_connection.id,
+                connector_name=event_data.connector_name,
+                connector_type=event_data.connector_type,
+                author=event_data.author
+            )
+        elif event_type == "connector_enabled":
+            success = connector.log_connector_enabled(
+                db_session=db,
+                connection_id=painchain_connection.id,
+                connector_name=event_data.connector_name,
+                connector_type=event_data.connector_type,
+                author=event_data.author
+            )
+        elif event_type == "connector_disabled":
+            success = connector.log_connector_disabled(
+                db_session=db,
+                connection_id=painchain_connection.id,
+                connector_name=event_data.connector_name,
+                connector_type=event_data.connector_type,
+                author=event_data.author
+            )
+        elif event_type == "config_changed":
+            success = connector.log_config_changed(
+                db_session=db,
+                connection_id=painchain_connection.id,
+                connector_name=event_data.connector_name,
+                field=event_data.field,
+                old_value=event_data.old_value,
+                new_value=event_data.new_value,
+                author=event_data.author
+            )
+        elif event_type == "field_visibility_changed":
+            success = connector.log_field_visibility_changed(
+                db_session=db,
+                connection_id=painchain_connection.id,
+                event_type=event_data.connector_type,  # The event type being configured (e.g., "PR", "ConnectorCreated")
+                field_key=event_data.field_key,
+                visible=event_data.visible,
+                author=event_data.author
+            )
+        else:
+            return {"success": False, "message": f"Unknown event type: {event_type}"}
+
+        if success:
+            return {
+                "success": True,
+                "message": f"PainChain event logged: {event_type}",
+                "event_type": event_type
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"Event type {event_type} not subscribed or failed to log"
+            }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to log PainChain event: {str(e)}"}
 
 
 @app.get("/api/stats")
@@ -619,7 +778,8 @@ async def get_timeline(
             "total": 0,
             "github": 0,
             "gitlab": 0,
-            "kubernetes": 0
+            "kubernetes": 0,
+            "painchain": 0
         }
 
     # Assign events to bins

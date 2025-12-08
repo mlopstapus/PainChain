@@ -99,6 +99,45 @@ const DEFAULT_FIELD_VISIBILITY = {
     cluster: true,
     ingress_class: true,
     hosts: true
+  },
+  ConnectorCreated: {
+    connector_name: true,
+    connector_type: true,
+    action: true
+  },
+  ConnectorUpdated: {
+    connector_name: true,
+    connector_type: true,
+    changes: true,
+    action: true
+  },
+  ConnectorDeleted: {
+    connector_name: true,
+    connector_type: true,
+    action: true
+  },
+  ConnectorEnabled: {
+    connector_name: true,
+    connector_type: true,
+    action: true
+  },
+  ConnectorDisabled: {
+    connector_name: true,
+    connector_type: true,
+    action: true
+  },
+  ConfigChanged: {
+    connector_name: true,
+    field: true,
+    old_value: true,
+    new_value: true,
+    action: true
+  },
+  FieldVisibilityChanged: {
+    event_type: true,
+    field: true,
+    visible: true,
+    action: true
   }
 }
 
@@ -250,6 +289,45 @@ export const FIELD_LABELS = {
     cluster: 'Cluster',
     ingress_class: 'Ingress Class',
     hosts: 'Hosts'
+  },
+  ConnectorCreated: {
+    connector_name: 'Connector Name',
+    connector_type: 'Connector Type',
+    action: 'Action'
+  },
+  ConnectorUpdated: {
+    connector_name: 'Connector Name',
+    connector_type: 'Connector Type',
+    changes: 'Changes Made',
+    action: 'Action'
+  },
+  ConnectorDeleted: {
+    connector_name: 'Connector Name',
+    connector_type: 'Connector Type',
+    action: 'Action'
+  },
+  ConnectorEnabled: {
+    connector_name: 'Connector Name',
+    connector_type: 'Connector Type',
+    action: 'Action'
+  },
+  ConnectorDisabled: {
+    connector_name: 'Connector Name',
+    connector_type: 'Connector Type',
+    action: 'Action'
+  },
+  ConfigChanged: {
+    connector_name: 'Connector Name',
+    field: 'Field Changed',
+    old_value: 'Old Value',
+    new_value: 'New Value',
+    action: 'Action'
+  },
+  FieldVisibilityChanged: {
+    event_type: 'Event Type',
+    field: 'Field',
+    visible: 'Visible',
+    action: 'Action'
   }
 }
 
@@ -266,5 +344,12 @@ export const EVENT_TYPE_NAMES = {
   K8sService: 'Kubernetes Services',
   K8sConfigMap: 'Kubernetes ConfigMaps',
   K8sSecret: 'Kubernetes Secrets',
-  K8sIngress: 'Kubernetes Ingresses'
+  K8sIngress: 'Kubernetes Ingresses',
+  ConnectorCreated: 'Connector Created (PainChain)',
+  ConnectorUpdated: 'Connector Updated (PainChain)',
+  ConnectorDeleted: 'Connector Deleted (PainChain)',
+  ConnectorEnabled: 'Connector Enabled (PainChain)',
+  ConnectorDisabled: 'Connector Disabled (PainChain)',
+  ConfigChanged: 'Config Changed (PainChain)',
+  FieldVisibilityChanged: 'Field Visibility Changed (PainChain)'
 }

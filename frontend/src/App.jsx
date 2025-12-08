@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import './App.css'
 import './Settings.css'
-import logo from './logo_transparent.png'
+import logo from './assets/logos/painchain_transparent.png'
 import githubLogo from './assets/logos/github.png'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'

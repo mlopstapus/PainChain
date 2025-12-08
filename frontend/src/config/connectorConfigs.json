@@ -181,5 +181,27 @@
         "required": false
       }
     ]
+  },
+  "painchain": {
+    "id": "painchain",
+    "name": "PainChain",
+    "fields": [
+      {
+        "key": "name",
+        "label": "Connection Name",
+        "type": "text",
+        "placeholder": "PainChain System",
+        "default": "PainChain System",
+        "required": true
+      },
+      {
+        "key": "tags",
+        "label": "Tags",
+        "type": "text",
+        "placeholder": "system,audit,changes",
+        "help": "Comma-separated tags for filtering events by team.",
+        "required": false
+      }
+    ]
   }
 }

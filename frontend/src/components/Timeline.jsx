@@ -8,7 +8,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const COLORS = {
   github: '#00E8A0',
   gitlab: '#fc6d26',
-  kubernetes: '#326ce5'
+  kubernetes: '#326ce5',
+  painchain: '#9f7aea'
 }
 
 function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChange }) {
@@ -313,6 +314,21 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
               radius={[8, 8, 0, 0]}
               onClick={(data, index) => {
                 if (data && data.kubernetes > 0) {
+                  handleBarClick(data, index)
+                }
+              }}
+              cursor="pointer"
+            />
+          )}
+          {stats.painchain !== undefined && (
+            <Bar
+              dataKey="painchain"
+              stackId="a"
+              name="PainChain"
+              fill={COLORS.painchain}
+              radius={[8, 8, 0, 0]}
+              onClick={(data, index) => {
+                if (data && data.painchain > 0) {
                   handleBarClick(data, index)
                 }
               }}
