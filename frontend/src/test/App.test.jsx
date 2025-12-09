@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { BrowserRouter } from 'react-router-dom'
+import { render } from '@testing-library/react'
 import App from '../App'
 
 // Mock fetch globally
@@ -14,11 +13,8 @@ describe('App', () => {
       json: async () => [],
     })
 
-    render(
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    )
+    // App already has BrowserRouter inside, don't wrap it again
+    render(<App />)
 
     // Basic sanity check - app should render
     expect(document.body).toBeTruthy()
