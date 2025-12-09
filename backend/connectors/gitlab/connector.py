@@ -321,6 +321,9 @@ def sync_gitlab(db_session, config: Dict[str, Any], connection_id: int) -> Dict[
         if not connector.client:
             raise ValueError("GitLab client not initialized")
 
+        # Use branches list for filtering
+        filter_branches = branches if branches else []
+
         try:
             total_fetched = 0
             total_stored = 0
@@ -344,6 +347,10 @@ def sync_gitlab(db_session, config: Dict[str, Any], connection_id: int) -> Dict[
                     for mr in mrs:
                         total_fetched += 1
                         event_id = f"mr-{project.path_with_namespace}-{mr.iid}"
+
+                        # Skip if branches are specified and this MR's target branch doesn't match
+                        if filter_branches and mr.target_branch not in filter_branches:
+                            continue
 
                         existing = db_session.query(ChangeEvent).filter(
                             ChangeEvent.connection_id == connection_id,
@@ -469,16 +476,26 @@ def sync_gitlab(db_session, config: Dict[str, Any], connection_id: int) -> Dict[
                             total_fetched += 1
                             event_id = f"pipeline-{project.path_with_namespace}-{pipeline.id}"
 
+                            # Get detailed pipeline info to check branch
+                            try:
+                                full_pipeline = project.pipelines.get(pipeline.id)
+
+                                # Skip if branches are specified and this pipeline's ref doesn't match
+                                if filter_branches and full_pipeline.ref not in filter_branches:
+                                    continue
+
+                            except Exception as e:
+                                print(f"  Error fetching pipeline {pipeline.id}: {e}")
+                                continue
+
                             existing = db_session.query(ChangeEvent).filter(
                                 ChangeEvent.connection_id == connection_id,
                                 ChangeEvent.event_id == event_id
                             ).first()
 
                             if not existing:
-                                # Get detailed pipeline info
+                                # Process pipeline (full_pipeline already fetched above)
                                 try:
-                                    full_pipeline = project.pipelines.get(pipeline.id)
-
                                     # Get job details for failed pipelines
                                     failed_jobs = []
                                     if full_pipeline.status in ['failed', 'canceled']:

@@ -314,6 +314,9 @@ def sync_github(db_session, config: Dict[str, Any], connection_id: int) -> Dict[
         if not connector.client:
             raise ValueError("GitHub client not initialized")
 
+        # Use branches list for filtering
+        filter_branches = branches if branches else []
+
         try:
             total_fetched = 0
             total_stored = 0
@@ -337,6 +340,10 @@ def sync_github(db_session, config: Dict[str, Any], connection_id: int) -> Dict[
                     for pr in prs[:limit]:
                         total_fetched += 1
                         event_id = f"pr-{repo.full_name}-{pr.number}"
+
+                        # Skip if branches are specified and this PR's base branch doesn't match
+                        if filter_branches and pr.base.ref not in filter_branches:
+                            continue
 
                         existing = db_session.query(ChangeEvent).filter(
                             ChangeEvent.connection_id == connection_id,
@@ -446,6 +453,10 @@ def sync_github(db_session, config: Dict[str, Any], connection_id: int) -> Dict[
                         for run in workflows:
                             total_fetched += 1
                             event_id = f"workflow-{repo.full_name}-{run.id}"
+
+                            # Skip if branches are specified and this run's branch doesn't match
+                            if filter_branches and run.head_branch not in filter_branches:
+                                continue
 
                             existing = db_session.query(ChangeEvent).filter(
                                 ChangeEvent.connection_id == connection_id,
