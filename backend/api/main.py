@@ -230,14 +230,28 @@ async def get_changes(
                 return []
 
     # Filter by tags - events must be from a connection with at least one of these tags
+    # Special handling: if filtering by a team tag, include team's subscribed tags
     if tag:
+        # Expand filter tags to include team subscriptions
+        expanded_filter_tags = set(tag)
+
+        # Check if any filter tag is a team tag
+        # Load all teams and check in Python since Team.tags is JSON
+        all_teams = db.query(Team).all()
+        for filter_tag in tag:
+            for team in all_teams:
+                if team.tags and filter_tag in team.tags:
+                    # Add all team's subscribed tags to the filter
+                    expanded_filter_tags.update(team.tags)
+                    break
+
         connections = db.query(Connection).all()
         matching_connection_ids = []
         for conn in connections:
             if conn.tags:
                 conn_tags = [t.strip() for t in conn.tags.split(',') if t.strip()]
-                # Check if any of the filter tags match any connection tag
-                if any(filter_tag in conn_tags for filter_tag in tag):
+                # Check if any of the expanded filter tags match any connection tag
+                if any(filter_tag in conn_tags for filter_tag in expanded_filter_tags):
                     matching_connection_ids.append(conn.id)
 
         if matching_connection_ids:
@@ -797,14 +811,27 @@ async def get_timeline(
     else:
         end_dt = datetime.now(timezone.utc)
 
-    # Filter by tags
+    # Filter by tags - with team expansion
     if tag:
+        # Expand filter tags to include team subscriptions
+        expanded_filter_tags = set(tag)
+
+        # Check if any filter tag is a team tag
+        # Load all teams and check in Python since Team.tags is JSON
+        all_teams = db.query(Team).all()
+        for filter_tag in tag:
+            for team in all_teams:
+                if team.tags and filter_tag in team.tags:
+                    # Add all team's subscribed tags to the filter
+                    expanded_filter_tags.update(team.tags)
+                    break
+
         connections = db.query(Connection).all()
         matching_connection_ids = []
         for conn in connections:
             if conn.tags:
                 conn_tags = [t.strip() for t in conn.tags.split(',') if t.strip()]
-                if any(filter_tag in conn_tags for filter_tag in tag):
+                if any(filter_tag in conn_tags for filter_tag in expanded_filter_tags):
                     matching_connection_ids.append(conn.id)
 
         if matching_connection_ids:

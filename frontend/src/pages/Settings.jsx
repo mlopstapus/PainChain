@@ -603,7 +603,12 @@ function Settings() {
         typeConnections = typeConnections.filter(c => {
           const matchesName = c.name.toLowerCase().includes(query)
           const matchesType = type.name.toLowerCase().includes(query)
-          return matchesName || matchesType
+
+          // Search in tags
+          const tags = c.tags ? c.tags.toLowerCase().split(',').map(t => t.trim()) : []
+          const matchesTags = tags.some(tag => tag.includes(query))
+
+          return matchesName || matchesType || matchesTags
         })
       }
 
@@ -665,7 +670,7 @@ function Settings() {
                 <input
                   type="text"
                   className="search-input"
-                  placeholder="Search by connection name or type..."
+                  placeholder="Search by connection name, type, or tags..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />

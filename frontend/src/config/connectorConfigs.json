@@ -96,10 +96,10 @@
       },
       {
         "key": "repos",
-        "label": "Projects",
+        "label": "Project IDs",
         "type": "text",
-        "placeholder": "group/project1,group/project2",
-        "help": "Comma-separated list. Leave empty for all projects.",
+        "placeholder": "76910432,12345678",
+        "help": "Comma-separated numeric project IDs (recommended) or project paths (group/project). Leave empty for all projects. Find Project ID in GitLab project settings.",
         "required": false
       },
       {

@@ -1,7 +1,7 @@
 {
   "id": "github",
   "displayName": "GitHub",
-  "color": "#00E8A0",
+  "color": "#9f7aea",
   "logo": "github.png",
   "description": "Track pull requests, releases, workflow runs, and commits from GitHub repositories"
 }

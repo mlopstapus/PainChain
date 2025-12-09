@@ -154,7 +154,8 @@
 .search-container {
   position: relative;
   margin-bottom: 32px;
-  max-width: 600px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .search-input {
