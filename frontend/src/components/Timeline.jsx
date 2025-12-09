@@ -282,31 +282,14 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
             />
           )}
 
-          {stats.github !== undefined && (
+          {stats.painchain !== undefined && (
             <Bar
-              dataKey="github"
+              dataKey="painchain"
               stackId="a"
-              name="GitHub"
-              fill={colors.github}
-              radius={[8, 8, 0, 0]}
+              name="PainChain"
+              fill={colors.painchain}
               onClick={(data, index) => {
-                // Only treat as direct bar click if there's actual data
-                if (data && data.github > 0) {
-                  handleBarClick(data, index)
-                }
-              }}
-              cursor="pointer"
-            />
-          )}
-          {stats.gitlab !== undefined && (
-            <Bar
-              dataKey="gitlab"
-              stackId="a"
-              name="GitLab"
-              fill={colors.gitlab}
-              radius={[8, 8, 0, 0]}
-              onClick={(data, index) => {
-                if (data && data.gitlab > 0) {
+                if (data && data.painchain > 0) {
                   handleBarClick(data, index)
                 }
               }}
@@ -319,7 +302,6 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
               stackId="a"
               name="Kubernetes"
               fill={colors.kubernetes}
-              radius={[8, 8, 0, 0]}
               onClick={(data, index) => {
                 if (data && data.kubernetes > 0) {
                   handleBarClick(data, index)
@@ -328,15 +310,29 @@ function Timeline({ sourceFilter, startDate, endDate, tagFilter, onTimeRangeChan
               cursor="pointer"
             />
           )}
-          {stats.painchain !== undefined && (
+          {stats.gitlab !== undefined && (
             <Bar
-              dataKey="painchain"
+              dataKey="gitlab"
               stackId="a"
-              name="PainChain"
-              fill={colors.painchain}
-              radius={[8, 8, 0, 0]}
+              name="GitLab"
+              fill={colors.gitlab}
               onClick={(data, index) => {
-                if (data && data.painchain > 0) {
+                if (data && data.gitlab > 0) {
+                  handleBarClick(data, index)
+                }
+              }}
+              cursor="pointer"
+            />
+          )}
+          {stats.github !== undefined && (
+            <Bar
+              dataKey="github"
+              stackId="a"
+              name="GitHub"
+              fill={colors.github}
+              onClick={(data, index) => {
+                // Only treat as direct bar click if there's actual data
+                if (data && data.github > 0) {
                   handleBarClick(data, index)
                 }
               }}
