@@ -1434,9 +1434,9 @@ function Dashboard() {
                         {change.title}
                       </a>
                     </h3>
-                    {change.metadata?.repository && (
+                    {(change.metadata?.repository || change.metadata?.project) && (
                       <div className="change-repo">
-                        Repository: {change.metadata.repository}
+                        Repository: {change.metadata.repository || change.metadata.project}
                       </div>
                     )}
 

@@ -8,8 +8,9 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy shared code
+# Copy shared code and connectors
 COPY shared/ /app/shared/
+COPY connectors/ /app/connectors/
 
 # Copy API requirements and install
 COPY api/requirements.txt .
@@ -20,4 +21,5 @@ COPY api/ /app/
 
 EXPOSE 8000
 
+# Default command (can be overridden)
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

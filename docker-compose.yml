@@ -5,6 +5,8 @@ services:
   db:
     image: postgres:16-alpine
     container_name: painchain-db
+    env_file:
+      - .env
     environment:
       POSTGRES_DB: painchain
       POSTGRES_USER: painchain
@@ -38,8 +40,9 @@ services:
       context: ./backend
       dockerfile: api/Dockerfile
     container_name: painchain-api
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://painchain:${DB_PASSWORD:-changeme}@db:5432/painchain
       REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
@@ -60,8 +63,9 @@ services:
       context: ./backend
       dockerfile: api/Dockerfile
     container_name: painchain-celery-worker
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://painchain:${DB_PASSWORD:-changeme}@db:5432/painchain
       REDIS_URL: redis://redis:6379/0
     volumes:
       - ./backend/api:/app
@@ -80,8 +84,9 @@ services:
       context: ./backend
       dockerfile: api/Dockerfile
     container_name: painchain-celery-beat
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://painchain:${DB_PASSWORD:-changeme}@db:5432/painchain
       REDIS_URL: redis://redis:6379/0
     volumes:
       - ./backend/api:/app
@@ -100,6 +105,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: painchain-frontend
+    env_file:
+      - .env
     environment:
       VITE_API_URL: http://localhost:8000
     ports:
