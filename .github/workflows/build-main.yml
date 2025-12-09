@@ -46,7 +46,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.name }}:main
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/painchain-${{ matrix.name }}:main
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
