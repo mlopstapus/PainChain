@@ -2,7 +2,7 @@
 
 **Unified Change Management & Incident Investigation**
 
-PainChain aggregates changes across your infrastructure—deployments, code commits, CI/CD pipelines, and infrastructure updates—into a single timeline. When production breaks, trace back through the chain of changes to find the root cause fast.
+PainChain aggregates changes across your platform—deployments, code commits, CI/CD pipelines, and infrastructure updates—into a single timeline. When production breaks, trace back through the chain of changes to find the root cause fast.
 
 ## What is PainChain?
 
@@ -13,39 +13,7 @@ Production incidents rarely have a single cause. A failed deployment might have 
 - SREs tracking infrastructure changes
 - Engineering teams correlating deployments with issues
 - Platform teams managing multi-environment rollouts
-
-## Features
-
-### Multi-Source Aggregation
-- **GitHub** - Pull requests, releases, workflow runs, commits
-- **GitLab** - Merge requests, pipelines, releases, commits
-- **Kubernetes** - Deployments, services, config changes, secrets
-
-### Intelligent Filtering
-- Filter by source, time range, author, status
-- Tag-based organization for teams and projects
-- Multi-select tag filtering for complex queries
-- Search across titles, descriptions, and metadata
-
-### Rich Event Details
-- Complete change descriptions with diffs
-- CI/CD pipeline status and logs
-- Failed job details with error context
-- Links to source systems for deeper investigation
-
-### Flexible Configuration
-- Web-based connector management (no YAML editing)
-- Per-connector polling intervals
-- Enable/disable connectors on the fly
-- Test connections before saving
-- GitHub Enterprise support
-
-### Modern Dashboard
-- Clean, compact UI inspired by modern tools
-- Real-time event updates
-- Expandable event cards with full metadata
-- Customizable field visibility per connector
-- Dark theme optimized for long sessions
+- Managers providing deployment tracking and oversite
 
 ---
 
@@ -391,16 +359,16 @@ git push origin feature/your-feature-name
 
 ### Adding New Connectors
 
-To add a new connector (e.g., Jira, ServiceNow):
+To add a new connector (e.g., Terraform):
 
 1. **Create connector directory:**
    ```bash
-   mkdir -p backend/connectors/jira
-   cd backend/connectors/jira
+   mkdir -p backend/connectors/Terraform
+   cd backend/connectors/Terraform
    ```
 
 2. **Implement connector logic:**
-   - Create `connector.py` with a `sync_jira()` function
+   - Create `connector.py` with a `sync_Terraform()` function
    - Follow existing connector patterns (see `github/connector.py`)
    - Use the shared `ChangeEvent` model
    - Include `test_connection()` method
@@ -494,22 +462,6 @@ docker-compose up db
 ## License
 
 MIT License - see LICENSE file for details
-
----
-
-## Roadmap
-
-**Current Version:** 1.0
-
-**Planned Features:**
-- Export events to CSV/JSON
-- Webhook support for real-time updates
-- More connectors (Jira, ServiceNow, Terraform Cloud)
-- Event correlation and relationship mapping
-- Slack/email notifications for critical changes
-- Custom alerting rules
-- Multi-user authentication
-- Role-based access control
 
 ---
 
