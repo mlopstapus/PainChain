@@ -943,6 +943,87 @@ const EVENT_TYPE_CONFIG = {
       }
     ]
   },
+  'K8sHelmRelease': {
+    titleMatch: '[Helm',
+    sections: [
+      {
+        title: 'Helm Release Details',
+        fields: [
+          {
+            key: 'namespace',
+            label: 'Namespace',
+            value: (event) => event.description?.namespace || event.metadata?.namespace || null
+          },
+          {
+            key: 'cluster',
+            label: 'Cluster',
+            value: (event) => event.metadata?.cluster || null
+          },
+          {
+            key: 'release_name',
+            label: 'Release Name',
+            value: (event) => event.description?.release_name || event.metadata?.release_name || null
+          },
+          {
+            key: 'revision',
+            label: 'Revision',
+            value: (event) => {
+              const revision = event.description?.revision || event.metadata?.revision
+              if (revision === undefined || revision === null) return null
+              return `v${revision}`
+            }
+          },
+          {
+            key: 'chart',
+            label: 'Chart',
+            value: (event) => event.description?.chart || event.metadata?.chart || null
+          },
+          {
+            key: 'app_version',
+            label: 'App Version',
+            value: (event) => event.description?.app_version || null
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            value: (event) => {
+              const status = event.description?.status || event.status
+              if (!status) return null
+              const statusColors = {
+                'deployed': '#3fb950',
+                'superseded': '#808080',
+                'failed': '#f85149',
+                'uninstalled': '#f85149'
+              }
+              const color = statusColors[status.toLowerCase()] || '#808080'
+              return {
+                type: 'html',
+                content: <span style={{ color, fontWeight: 600 }}>{status}</span>
+              }
+            }
+          },
+          {
+            key: 'description',
+            label: 'Description',
+            value: (event) => event.description?.description || null
+          }
+        ],
+        lists: [
+          {
+            key: 'values_keys',
+            title: 'Values (Keys)',
+            getValue: (event) => event.description?.values_keys,
+            renderItem: (key, idx) => (
+              <div key={idx} className="item-entry">
+                <span style={{ color: '#00E8A0' }}>{key}</span>
+              </div>
+            ),
+            maxVisible: 10
+          }
+        ]
+      }
+    ]
+  },
   'K8sRoleBinding': {
     titleMatch: '[RoleBinding',
     sections: [

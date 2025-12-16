@@ -213,14 +213,20 @@ class KubernetesWatchConnector:
 
     def _is_significant_pod_event(self, event_type: str, pod) -> bool:
         """Determine if pod event is significant for RCA."""
-        # Always record ADDED and DELETED
-        if event_type in ['ADDED', 'DELETED']:
+        status = pod.status
+
+        # Skip pods in Pending phase for ADDED events - not significant until they have issues
+        if event_type == 'ADDED':
+            if status and status.phase == 'Pending':
+                return False
+            return True
+
+        # Always record DELETED events
+        if event_type == 'DELETED':
             return True
 
         # For MODIFIED, check for significant state changes
         if event_type == 'MODIFIED':
-            status = pod.status
-
             # Check for failure states
             if status.container_statuses:
                 for cs in status.container_statuses:
@@ -702,8 +708,8 @@ class KubernetesWatchConnector:
         return False
 
     def _watch_secrets(self, connection_id: int, resource_version: Optional[str] = None):
-        """Watch Secret events (metadata only, not values)."""
-        print(f"Watching Secrets (resourceVersion: {resource_version or 'initial'})")
+        """Watch Secret events (metadata only, not values) and Helm releases."""
+        print(f"Watching Secrets and Helm Releases (resourceVersion: {resource_version or 'initial'})")
 
         w = watch.Watch()
         try:
@@ -725,8 +731,11 @@ class KubernetesWatchConnector:
                 if secret.metadata.resource_version:
                     self._save_resource_version(connection_id, 'secrets', secret.metadata.resource_version)
 
-                # Track secret key changes (not values)
-                if event_type in ['ADDED', 'DELETED'] or self._has_secret_key_changes(event_type, secret):
+                # Check if this is a Helm release secret
+                if secret.type and secret.type.startswith('helm.sh/release.v'):
+                    self._store_helm_release_event(connection_id, event_type, secret)
+                # Track regular secret key changes (not values)
+                elif event_type in ['ADDED', 'DELETED'] or self._has_secret_key_changes(event_type, secret):
                     self._store_generic_event(connection_id, event_type, secret, 'Secret')
 
         except ApiException as e:
@@ -868,6 +877,168 @@ class KubernetesWatchConnector:
                 print(f"Error watching rolebindings: {e}")
         finally:
             w.stop()
+
+    def _parse_helm_release(self, secret) -> Optional[Dict[str, Any]]:
+        """Parse Helm release data from secret."""
+        try:
+            import base64
+            import gzip
+
+            # Helm secret name format: sh.helm.release.v1.{release-name}.v{revision}
+            secret_name = secret.metadata.name
+            if not secret_name.startswith('sh.helm.release.v1.'):
+                return None
+
+            parts = secret_name.split('.')
+            if len(parts) < 5:
+                return None
+
+            release_name = '.'.join(parts[3:-1])  # Handle release names with dots
+            revision = parts[-1].replace('v', '')
+
+            # Get the release data from secret
+            if not secret.data or 'release' not in secret.data:
+                return None
+
+            # Decode and decompress the release data
+            encoded_data = secret.data['release']
+            compressed_data = base64.b64decode(encoded_data)
+            decompressed_data = gzip.decompress(compressed_data)
+            release_data = json.loads(decompressed_data.decode('utf-8'))
+
+            # Extract relevant information
+            chart_metadata = release_data.get('chart', {}).get('metadata', {})
+            chart_name = chart_metadata.get('name', 'unknown')
+            chart_version = chart_metadata.get('version', 'unknown')
+            app_version = chart_metadata.get('appVersion', 'unknown')
+
+            info = release_data.get('info', {})
+            status = info.get('status', 'unknown')
+            description = info.get('description', '')
+
+            # Get values summary (just keys, not actual values for security)
+            values = release_data.get('config', {})
+            values_keys = list(values.keys()) if values else []
+
+            return {
+                'release_name': release_name,
+                'revision': revision,
+                'chart_name': chart_name,
+                'chart_version': chart_version,
+                'app_version': app_version,
+                'status': status,
+                'description': description,
+                'values_keys': values_keys[:20],  # Limit to 20 keys
+                'namespace': secret.metadata.namespace
+            }
+        except Exception as e:
+            print(f"Error parsing Helm release from secret {secret.metadata.name}: {e}")
+            return None
+
+    def _store_helm_release_event(self, connection_id: int, event_type: str, secret):
+        """Store Helm release event with detailed chart information."""
+        session = SessionLocal()
+        try:
+            helm_data = self._parse_helm_release(secret)
+            if not helm_data:
+                # If we can't parse the Helm data, still try to extract basic info
+                secret_name = secret.metadata.name
+                if secret_name.startswith('sh.helm.release.v1.'):
+                    parts = secret_name.split('.')
+                    release_name = '.'.join(parts[3:-1]) if len(parts) >= 5 else secret_name
+                    revision = parts[-1].replace('v', '') if len(parts) >= 5 else '0'
+                    helm_data = {
+                        'release_name': release_name,
+                        'revision': revision,
+                        'chart_name': 'unknown',
+                        'chart_version': 'unknown',
+                        'app_version': 'unknown',
+                        'status': 'unknown',
+                        'description': '',
+                        'values_keys': [],
+                        'namespace': secret.metadata.namespace
+                    }
+                else:
+                    return
+
+            # Skip pending states - not significant for RCA
+            status = helm_data['status'].lower()
+            if status.startswith('pending-'):
+                return
+
+            namespace = helm_data['namespace'] or "default"
+            release_name = helm_data['release_name']
+            revision = helm_data['revision']
+
+            event_id = f"{self.cluster_name}:{namespace}:helmrelease:{release_name}:v{revision}:{secret.metadata.resource_version}"
+
+            # Check if this exact event already exists
+            existing = session.query(ChangeEvent).filter_by(
+                connection_id=connection_id,
+                event_id=event_id
+            ).first()
+
+            if existing:
+                return
+
+            # Build description
+            description = {
+                "event_type": event_type,
+                "namespace": namespace,
+                "release_name": release_name,
+                "revision": int(revision),
+                "chart": f"{helm_data['chart_name']}:{helm_data['chart_version']}",
+                "chart_name": helm_data['chart_name'],
+                "chart_version": helm_data['chart_version'],
+                "app_version": helm_data['app_version'],
+                "status": helm_data['status'],
+                "description": helm_data['description'],
+                "values_keys": helm_data['values_keys'],
+                "labels": dict(secret.metadata.labels) if secret.metadata.labels else {},
+                "annotations": dict(secret.metadata.annotations) if secret.metadata.annotations else {},
+            }
+
+            # Create appropriate title based on event type
+            if event_type == 'DELETED':
+                title = f"[Helm Uninstall] {release_name} (v{revision})"
+            elif event_type == 'ADDED':
+                action = "Install" if revision == "1" else "Upgrade"
+                title = f"[Helm {action}] {release_name} → {helm_data['chart_name']}:{helm_data['chart_version']} (v{revision})"
+            else:  # MODIFIED
+                title = f"[Helm Update] {release_name} → {helm_data['chart_name']}:{helm_data['chart_version']} (v{revision})"
+
+            change_event = ChangeEvent(
+                source="kubernetes",
+                event_id=event_id,
+                title=title,
+                description=description,
+                author=f"helm/{namespace}",
+                timestamp=secret.metadata.creation_timestamp.replace(tzinfo=timezone.utc) if secret.metadata.creation_timestamp else datetime.now(timezone.utc),
+                url=f"k8s://{self.cluster_name}/{namespace}/helm/{release_name}",
+                status=helm_data['status'].lower(),
+                event_metadata={
+                    "cluster": self.cluster_name,
+                    "namespace": namespace,
+                    "resource_type": "helmrelease",
+                    "release_name": release_name,
+                    "revision": int(revision),
+                    "chart": f"{helm_data['chart_name']}:{helm_data['chart_version']}",
+                    "labels": dict(secret.metadata.labels) if secret.metadata.labels else {}
+                },
+                connection_id=connection_id
+            )
+
+            session.add(change_event)
+            session.commit()
+            print(f"Stored Helm release event: {event_type} - {namespace}/{release_name} v{revision}")
+
+        except Exception as e:
+            print(f"Error storing Helm release event: {e}")
+            import traceback
+            traceback.print_exc()
+            session.rollback()
+        finally:
+            session.close()
 
     def _store_generic_event(self, connection_id: int, event_type: str, resource, resource_kind: str):
         """Store a generic resource event with detailed information."""
