@@ -15,6 +15,15 @@ Production incidents rarely have a single cause. A failed deployment might have 
 - Platform teams managing multi-environment rollouts
 - Managers providing deployment tracking and oversite
 
+**Key Features:**
+- **Plugin Architecture:** Add new connectors without touching frontend code
+- **Auto-Discovery:** Connectors are automatically detected from backend metadata
+- **Unified Timeline:** All changes aggregated into a single, filterable view
+- **Customizable UI:** Control which fields are visible for each event type
+- **Team-Based Filtering:** Tag connectors and filter events by team
+- **Flexible Polling:** Configure per-connector poll intervals
+- **Connection Testing:** Validate credentials before saving
+
 ---
 
 ## Quick Start
@@ -49,16 +58,16 @@ docker-compose up --build
 This starts:
 - **PostgreSQL** database (port 5432)
 - **Redis** message broker (port 6379)
-- **API** service (port 8000)
+- **API** service (port 8001, mapped from container port 8000)
 - **Celery Worker** for background tasks
 - **Celery Beat** for scheduled polling
-- **Frontend** dashboard (port 5173)
+- **Frontend** dashboard (port 5174)
 
 ### 4. Access the Dashboard
 
 Open your browser to:
-- **Dashboard:** http://localhost:5173
-- **API Docs:** http://localhost:8000/docs
+- **Dashboard:** http://localhost:5174
+- **API Docs:** http://localhost:8001/docs
 
 ### 5. Configure Your First Connector
 
@@ -126,30 +135,33 @@ All other configuration is done through the web UI.
 
 ```
 ┌─────────────┐
-│  Frontend   │  React Dashboard (port 5173)
-│  (Vite)     │
-└──────┬──────┘
+│  Frontend   │  React Dashboard (port 5174)
+│  (Vite)     │  • Auto-discovers connectors from API
+└──────┬──────┘  • Loads metadata at runtime
        │ HTTP
        ▼
 ┌─────────────┐     ┌──────────────┐
 │  API        │────▶│  PostgreSQL  │
 │  (FastAPI)  │     │  Database    │
+│  Port 8001  │     │              │
 └──────┬──────┘     └──────────────┘
-       │
-       │ Celery Tasks
+       │             Serves metadata.json
+       │ Celery      for all connectors
+       │ Tasks
        ▼
 ┌─────────────┐     ┌──────────────┐
 │  Celery     │────▶│    Redis     │
 │  Worker     │     │  (Broker)    │
 └──────┬──────┘     └──────────────┘
        │
-       │ Polls
+       │ Polls via connector plugins
        ▼
 ┌─────────────────────────────┐
 │  External Services          │
 │  • GitHub API               │
 │  • GitLab API               │
 │  • Kubernetes API           │
+│  • (Add your own!)          │
 └─────────────────────────────┘
 ```
 
@@ -157,12 +169,14 @@ All other configuration is done through the web UI.
 
 **Frontend (React + Vite)**
 - Dashboard with event timeline
-- Connector configuration UI
+- Auto-discovered connector configuration UI
+- Plugin-based event rendering system
 - Filtering and search
 - Field visibility customization
 
 **API (FastAPI)**
 - RESTful endpoints for events and connectors
+- Serves connector metadata from backend
 - Manages connector configurations
 - Triggers manual syncs
 - Provides statistics
@@ -182,6 +196,67 @@ All other configuration is done through the web UI.
 - Connector configurations
 - Team/tag associations
 - JSONB fields for flexible metadata
+
+### Plugin Architecture
+
+PainChain uses a **plugin-based connector system** for true plug-and-play extensibility:
+
+**Backend Metadata (`/backend/connectors/{name}/metadata.json`)**
+- Connector identity (id, displayName, logo, description)
+- Connection form schema (`connectionForm`)
+- Event type definitions with field labels and visibility (`eventTypes`)
+
+**Frontend Event Rendering (`/frontend/src/connectors/{name}/eventConfig.jsx`)**
+- Custom JSX rendering logic for event cards
+- Field formatters and data extractors
+- Optional - defaults to generic rendering
+
+Connectors are **automatically discovered** from backend metadata. The frontend loads connector configurations, form schemas, and field definitions from the API at runtime. No manual frontend code changes are required to add basic connector support!
+
+### Directory Structure
+
+```
+PainChain/
+├── backend/
+│   ├── api/                    # FastAPI application
+│   │   ├── main.py            # API routes & endpoints
+│   │   ├── celery_app.py      # Celery configuration
+│   │   └── tasks.py           # Background tasks
+│   ├── connectors/            # Connector plugins (auto-discovered)
+│   │   ├── github/
+│   │   │   ├── connector.py   # Polling logic
+│   │   │   ├── metadata.json  # UI config + event types
+│   │   │   ├── logo.png       # Connector icon
+│   │   │   └── README.md      # Documentation
+│   │   ├── gitlab/
+│   │   ├── kubernetes/
+│   │   └── painchain/         # Internal system connector
+│   └── shared/
+│       └── models.py          # Shared data models
+├── frontend/
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── Dashboard.jsx  # Main timeline view
+│   │   │   └── Settings.jsx   # Connector configuration
+│   │   ├── connectors/        # Event rendering plugins
+│   │   │   ├── github/
+│   │   │   │   └── eventConfig.jsx  # Custom rendering
+│   │   │   ├── gitlab/
+│   │   │   ├── kubernetes/
+│   │   │   └── painchain/
+│   │   └── utils/
+│   │       ├── connectorMetadata.js   # Fetches from API
+│   │       ├── eventConfigLoader.js   # Merges event configs
+│   │       └── fieldVisibility.js     # Field visibility logic
+│   └── public/
+└── docker-compose.yml
+```
+
+**Key Points:**
+- Each connector lives in its own directory under `backend/connectors/`
+- Frontend event rendering is optional (in `frontend/src/connectors/`)
+- Metadata is served from backend, not hardcoded in frontend
+- No central configuration file to update when adding connectors
 
 ---
 
@@ -359,38 +434,243 @@ git push origin feature/your-feature-name
 
 ### Adding New Connectors
 
-To add a new connector (e.g., Terraform):
+PainChain's plugin architecture makes adding connectors straightforward. Here's how to add a new connector (e.g., Terraform):
 
-1. **Create connector directory:**
+#### Step 1: Create Backend Connector
+
+```bash
+mkdir -p backend/connectors/terraform
+cd backend/connectors/terraform
+```
+
+Create three files:
+
+**1. `connector.py` - Polling Logic**
+
+Implement the connector sync function:
+
+```python
+from shared.models import ChangeEvent
+from datetime import datetime, timezone
+import requests
+
+def sync_terraform(connection_id, config):
+    """
+    Fetch Terraform Cloud runs and store as change events.
+
+    Args:
+        connection_id: Database ID of this connection
+        config: Dictionary with token, organization, workspace, etc.
+    """
+    # Fetch data from external API
+    headers = {"Authorization": f"Bearer {config['token']}"}
+    response = requests.get(
+        f"https://app.terraform.io/api/v2/organizations/{config['org']}/runs",
+        headers=headers
+    )
+
+    # Parse and store events
+    for run in response.json()['data']:
+        event = ChangeEvent(
+            connection_id=connection_id,
+            source="terraform",
+            event_type="TerraformRun",
+            title=f"[Terraform] {run['attributes']['message']}",
+            description=run['attributes']['status'],
+            timestamp=datetime.fromisoformat(run['attributes']['created-at']),
+            event_metadata={
+                "run_id": run['id'],
+                "status": run['attributes']['status'],
+                "workspace": config['workspace']
+            }
+        )
+        event.store()
+
+def test_connection(config):
+    """Test if credentials are valid."""
+    headers = {"Authorization": f"Bearer {config['token']}"}
+    response = requests.get(
+        f"https://app.terraform.io/api/v2/organizations/{config['org']}",
+        headers=headers
+    )
+    return response.status_code == 200
+```
+
+**2. `metadata.json` - Connector Configuration**
+
+This file defines everything the frontend needs to know:
+
+```json
+{
+  "id": "terraform",
+  "displayName": "Terraform Cloud",
+  "color": "#7B42BC",
+  "logo": "terraform.png",
+  "description": "Track Terraform Cloud runs and infrastructure changes",
+  "connectionForm": {
+    "fields": [
+      {
+        "key": "name",
+        "label": "Connection Name",
+        "type": "text",
+        "placeholder": "Production Terraform",
+        "required": true
+      },
+      {
+        "key": "token",
+        "label": "API Token",
+        "type": "password",
+        "placeholder": "Enter Terraform Cloud token",
+        "required": true
+      },
+      {
+        "key": "org",
+        "label": "Organization",
+        "type": "text",
+        "placeholder": "my-org",
+        "required": true
+      },
+      {
+        "key": "workspace",
+        "label": "Workspace",
+        "type": "text",
+        "placeholder": "production",
+        "help": "Leave empty to monitor all workspaces",
+        "required": false
+      },
+      {
+        "key": "pollInterval",
+        "label": "Poll Interval (seconds)",
+        "type": "number",
+        "default": "300",
+        "min": 60,
+        "max": 3600,
+        "required": true
+      }
+    ]
+  },
+  "eventTypes": {
+    "TerraformRun": {
+      "displayName": "Terraform Runs",
+      "fields": {
+        "run_id": { "defaultVisibility": true, "fieldLabel": "Run ID" },
+        "status": { "defaultVisibility": true, "fieldLabel": "Status" },
+        "workspace": { "defaultVisibility": true, "fieldLabel": "Workspace" },
+        "changes": { "defaultVisibility": true, "fieldLabel": "Changes" }
+      }
+    }
+  }
+}
+```
+
+**3. `README.md` - Documentation**
+
+Document setup, configuration, and troubleshooting (copy template from `github/README.md`).
+
+#### Step 2: Add Frontend Event Rendering (Optional)
+
+If you want custom rendering for your events, create:
+
+**`frontend/src/connectors/terraform/eventConfig.jsx`**
+
+```jsx
+export const terraformEventConfig = {
+  'TerraformRun': {
+    titleMatch: '[Terraform]',
+    sections: [
+      {
+        title: 'Run Details',
+        fields: [
+          {
+            key: 'run_id',
+            label: 'Run ID',
+            value: (event) => event.metadata?.run_id
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            value: (event) => {
+              const status = event.metadata?.status
+              const color = status === 'applied' ? '#3fb950' :
+                           status === 'errored' ? '#f85149' : '#808080'
+              return {
+                type: 'html',
+                content: <span style={{ color }}>{status}</span>
+              }
+            }
+          },
+          {
+            key: 'workspace',
+            label: 'Workspace',
+            value: (event) => event.metadata?.workspace
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Then register it in `frontend/src/utils/eventConfigLoader.js`:
+
+```javascript
+import { terraformEventConfig } from '../connectors/terraform/eventConfig'
+
+const connectorConfigs = [
+  githubEventConfig,
+  gitlabEventConfig,
+  kubernetesEventConfig,
+  painchainEventConfig,
+  terraformEventConfig  // Add your new connector here
+]
+```
+
+**Note:** If you skip this step, events will still appear in the timeline with generic rendering based on the field labels from `metadata.json`.
+
+#### Step 3: Test Your Connector
+
+1. **Start the backend:**
    ```bash
-   mkdir -p backend/connectors/Terraform
-   cd backend/connectors/Terraform
+   docker-compose up --build
    ```
 
-2. **Implement connector logic:**
-   - Create `connector.py` with a `sync_Terraform()` function
-   - Follow existing connector patterns (see `github/connector.py`)
-   - Use the shared `ChangeEvent` model
-   - Include `test_connection()` method
+2. **Configure in UI:**
+   - Navigate to Settings → Connections
+   - Your new connector appears automatically
+   - Click "Add Connection" and fill in the form
+   - Test the connection
 
-3. **Add configuration:**
-   - Add connector definition to `frontend/src/config/connectorConfigs.json`
-   - Define fields, types, help text, and validation
+3. **Verify events:**
+   - Enable the connector
+   - Wait for poll interval
+   - Check dashboard for events
 
-4. **Create README:**
-   - Copy template from `backend/connectors/github/README.md`
-   - Document setup, configuration, and troubleshooting
+#### Step 4: Submit PR
 
-5. **Test thoroughly:**
-   - Test connection validation
-   - Test event fetching and storage
-   - Test error handling
-   - Test with various configurations
+Before submitting:
+- ✅ Test connection validation
+- ✅ Test event fetching and storage
+- ✅ Test error handling (invalid credentials, network errors, API changes)
+- ✅ Include connector logo as `/backend/connectors/{name}/logo.png`
+- ✅ Document required API permissions
+- ✅ Add example configurations
+- ✅ Update this README if the connector requires special setup
 
-6. **Submit PR:**
-   - Include examples and screenshots
-   - Document any new dependencies
-   - Update main README if needed
+**What you DON'T need to change:**
+- ❌ Dashboard.jsx
+- ❌ Settings.jsx
+- ❌ Any core frontend files (unless adding event rendering)
+- ❌ API routes (connectors are auto-discovered)
+
+### Connector Architecture Benefits
+
+**Auto-Discovery:** The backend serves all connector metadata through `/api/connectors/metadata`. The frontend dynamically builds forms, field labels, and visibility settings from this endpoint.
+
+**No Frontend Code Changes:** Adding a connector only requires backend code + metadata.json. The UI updates automatically.
+
+**Plug-and-Play:** Each connector is self-contained in its own directory with all configuration, logic, and documentation in one place.
+
+**Consistent UI:** All connectors use the same form rendering logic, ensuring a consistent user experience.
 
 ### Getting Help
 
@@ -412,7 +692,7 @@ docker-compose logs [service-name]
 ```
 
 **Common issues:**
-- Port conflicts: Check if ports 5432, 6379, 8000, 5173 are available
+- Port conflicts: Check if ports 5432, 6379, 8001, 5174 are available
 - Database not ready: Wait for PostgreSQL healthcheck to pass
 - Permission errors: Ensure Docker has file access
 
@@ -456,6 +736,64 @@ docker-compose exec db psql -U painchain -d painchain
 docker-compose down -v
 docker-compose up db
 ```
+
+---
+
+## Connector Development: Before vs After
+
+### Before Auto-Discovery (Old Architecture)
+
+To add a new connector, you needed to modify **6 different files**:
+
+1. ✏️ `backend/connectors/{name}/connector.py` - Backend logic
+2. ✏️ `backend/connectors/{name}/README.md` - Documentation
+3. ✏️ `frontend/src/config/connectorConfigs.json` - Form schema
+4. ✏️ `frontend/src/utils/fieldVisibility.js` - Field labels & defaults
+5. ✏️ `frontend/src/pages/Dashboard.jsx` - Event rendering (1300+ lines!)
+6. ✏️ `frontend/src/pages/Settings.jsx` - Often needed tweaks
+
+**Problems:**
+- ❌ High coupling between frontend and backend
+- ❌ Easy to forget updating a file
+- ❌ Dashboard.jsx became massive (1300+ lines)
+- ❌ Inconsistent patterns across connectors
+- ❌ Difficult to test in isolation
+
+### After Auto-Discovery (New Architecture)
+
+To add a new connector, you only need **2-3 files**:
+
+1. ✏️ `backend/connectors/{name}/connector.py` - Backend logic
+2. ✏️ `backend/connectors/{name}/metadata.json` - **All UI config in one place**
+3. ✏️ `backend/connectors/{name}/README.md` - Documentation
+4. *(Optional)* `frontend/src/connectors/{name}/eventConfig.jsx` - Custom rendering
+
+**Benefits:**
+- ✅ True plug-and-play architecture
+- ✅ Single source of truth (metadata.json)
+- ✅ Frontend auto-discovers connectors from API
+- ✅ Each connector is self-contained
+- ✅ Easy to test and maintain
+- ✅ Dashboard.jsx reduced from 1300+ lines to ~50 lines
+
+### What Changed?
+
+**Backend (`metadata.json`)** now contains everything:
+```json
+{
+  "id": "myconnector",
+  "displayName": "My Connector",
+  "connectionForm": { /* form fields */ },
+  "eventTypes": { /* field visibility & labels */ }
+}
+```
+
+**Frontend** loads this at runtime via `/api/connectors/metadata` and:
+- Dynamically renders connection forms
+- Populates field labels and visibility
+- *(Optional)* Uses custom event rendering plugins
+
+**Result:** Adding a connector is now a backend-only task!
 
 ---
 
