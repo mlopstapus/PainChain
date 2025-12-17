@@ -42,8 +42,14 @@ export class TeamsController {
   @Post()
   @ApiOperation({ summary: 'Create a new team' })
   async createTeam(@Body() dto: CreateTeamDto) {
+    // Convert tags to array if it's a string (comma-separated)
+    const data: any = { ...dto }
+    if (typeof data.tags === 'string') {
+      data.tags = data.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0)
+    }
+
     return await this.prisma.team.create({
-      data: dto,
+      data,
     })
   }
 
@@ -56,9 +62,15 @@ export class TeamsController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateTeamDto,
   ) {
+    // Convert tags to array if it's a string (comma-separated)
+    const data: any = { ...dto }
+    if (typeof data.tags === 'string') {
+      data.tags = data.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0)
+    }
+
     return await this.prisma.team.update({
       where: { id },
-      data: dto,
+      data,
     })
   }
 

@@ -19,10 +19,12 @@ export class TimelineController {
   @ApiOperation({ summary: 'Get aggregated timeline data' })
   @ApiQuery({ name: 'start_date', required: false })
   @ApiQuery({ name: 'end_date', required: false })
+  @ApiQuery({ name: 'source', required: false })
   @ApiQuery({ name: 'tag', required: false, type: [String] })
   async getTimeline(
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
+    @Query('source') source?: string,
     @Query('tag') tags?: string | string[],
   ) {
     // Calculate date range (use rolling 24-hour window if not specified)
@@ -37,13 +39,50 @@ export class TimelineController {
       lte: end,
     }
 
-    // Tag filtering - need to join with connections
+    // Source filtering
+    if (source) {
+      where.source = source
+    }
+
+    // Tag filtering - filter by connection tags OR team membership OR team subscribed tags
     if (tags) {
       const tagArray = Array.isArray(tags) ? tags : [tags]
+
+      // Find teams matching the filter tags to get their subscribed tags
+      const teams = await this.prisma.team.findMany({
+        where: {
+          name: {
+            in: tagArray,
+          },
+        },
+        select: {
+          tags: true,
+        },
+      })
+
+      // Collect all subscribed tags from matching teams
+      const subscribedTags = teams.flatMap((team) => team.tags)
+
+      // Combine original tags with subscribed tags
+      const allTags = [...tagArray, ...subscribedTags]
+
       where.connection = {
-        OR: tagArray.map((tag) => ({
-          name: { contains: tag },
-        })),
+        OR: [
+          // Match connections with any of the tags directly (original + subscribed)
+          ...allTags.map((tag) => ({
+            tags: { contains: tag },
+          })),
+          // Match connections that belong to a team with matching name
+          ...tagArray.map((tag) => ({
+            teams: {
+              some: {
+                team: {
+                  name: tag,
+                },
+              },
+            },
+          })),
+        ],
       }
     }
 
