@@ -26,10 +26,10 @@ To access your application:
   # Terminal 1: Forward the backend API
   kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "painchain.fullname" . }}-backend {{ .Values.backend.service.port }}:{{ .Values.backend.service.port }}
 
-  # Terminal 2: Forward the frontend (use 8080 locally to avoid needing root for port 80)
-  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "painchain.fullname" . }}-frontend 8080:{{ .Values.frontend.service.port }}
+  # Terminal 2: Forward the frontend
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "painchain.fullname" . }}-frontend {{ .Values.frontend.service.port }}:{{ .Values.frontend.service.port }}
 
-  echo "Visit http://127.0.0.1:8080 to use your application"
+  echo "Visit http://127.0.0.1:{{ .Values.frontend.service.port }} to use your application"
   echo "Backend API available at http://127.0.0.1:{{ .Values.backend.service.port }}"
 {{- end }}
 

@@ -3,7 +3,7 @@
 
 # Global settings
 global:
-  imagePullPolicy: Always
+  imagePullPolicy: IfNotPresent  # Use local images if available, otherwise pull
 
 # Namespace configuration
 namespace:
@@ -66,16 +66,15 @@ frontend:
     tag: main
   service:
     type: ClusterIP
-    port: 80
+    port: 5173
   # API URL for the frontend
-  # Note: This is baked in at build time. For runtime config, consider nginx proxy or config.js injection
   # For local port-forwarding: use "http://localhost:8000"
   # For ingress/production: use your ingress URL or internal service name
   apiUrl: "http://localhost:8000"
   resources:
     requests:
-      memory: 128Mi
-      cpu: 50m
+      memory: 256Mi
+      cpu: 100m
 
   tls: []
   # Example TLS configuration:
