@@ -51,7 +51,6 @@ backend:
     type: ClusterIP
     port: 8000
   env:
-    REDIS_URL: "redis://painchain-redis:6379/0"
     NODE_ENV: "production"
   resources:
     requests:
@@ -67,15 +66,16 @@ frontend:
     tag: main
   service:
     type: ClusterIP
-    port: 5174
+    port: 80
   # API URL for the frontend
+  # Note: This is baked in at build time. For runtime config, consider nginx proxy or config.js injection
   # For local port-forwarding: use "http://localhost:8000"
   # For ingress/production: use your ingress URL or internal service name
   apiUrl: "http://localhost:8000"
   resources:
     requests:
-      memory: 256Mi
-      cpu: 100m
+      memory: 128Mi
+      cpu: 50m
 
   tls: []
   # Example TLS configuration:

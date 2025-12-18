@@ -102,22 +102,8 @@ The following table lists the configurable parameters of the PainChain chart and
 | `frontend.image.repository` | Frontend image repository | `ghcr.io/painchain/painchain-frontend` |
 | `frontend.image.tag` | Frontend image tag | `main` |
 | `frontend.service.type` | Kubernetes service type | `ClusterIP` |
-| `frontend.service.port` | Service port | `5174` |
-| `frontend.apiUrl` | API URL for frontend | `http://localhost:8000` |
-
-### Celery Worker Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `celeryWorker.enabled` | Enable Celery Worker | `true` |
-| `celeryWorker.replicaCount` | Number of worker replicas | `1` |
-
-### Celery Beat Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `celeryBeat.enabled` | Enable Celery Beat scheduler | `true` |
-| `celeryBeat.replicaCount` | Number of beat replicas | `1` |
+| `frontend.service.port` | Service port | `80` |
+| `frontend.apiUrl` | API URL for frontend (baked in at build time) | `http://localhost:8000` |
 
 ### Ingress Parameters
 
@@ -134,34 +120,41 @@ After installation, follow the notes printed by Helm to access your PainChain in
 
 ### Local Development with Port Forwarding
 
-The default configuration uses `frontend.apiUrl: "http://localhost:8000"` which is suitable for local development with port-forwarding.
+The default configuration is suitable for local development with port-forwarding.
 
 **Important**: You must forward BOTH services for the application to work:
 
 ```bash
-# Terminal 1: Forward the API
-kubectl --namespace painchain port-forward svc/painchain-api 8000:8000
+# Terminal 1: Forward the backend API
+kubectl --namespace painchain port-forward svc/painchain-backend 8000:8000
 
-# Terminal 2: Forward the frontend
-kubectl --namespace painchain port-forward svc/painchain-frontend 5174:5174
+# Terminal 2: Forward the frontend (use 8080 locally to avoid needing root)
+kubectl --namespace painchain port-forward svc/painchain-frontend 8080:80
 
 # Open in browser
-open http://localhost:5174
+open http://localhost:8080
 ```
+
+**Note**:
+- The frontend now serves on port 80 inside the container via nginx (instead of port 5174 from Vite dev server)
+- We map local port 8080 → container port 80 to avoid needing root privileges
+- You can use any high port locally (8080, 3000, 5173, etc.)
 
 #### How Frontend Communicates with Backend
 
 ```
-Browser → http://localhost:5174 (Frontend React App)
+Browser → http://localhost:8080 (your local machine)
   ↓
-  Frontend makes API calls to http://localhost:8000 (configured via VITE_API_URL)
+  Port-forward maps 8080 → 80 → Frontend pod (nginx serving React app)
   ↓
-  Port-forward tunnels to painchain-api service in cluster
+  Frontend makes API calls to http://localhost:8000 (API URL baked into build)
   ↓
-  API pod processes request
+  Port-forward tunnels to painchain-backend service in cluster
+  ↓
+  Backend API pod processes request
 ```
 
-The frontend is a **client-side React app** that runs in your browser and makes direct HTTP requests to the API URL. When using port-forwarding, both services are accessible via localhost.
+The frontend is a **production-built React app** served by nginx. It makes direct HTTP requests to the API URL which is configured at build time. When using port-forwarding, both services are accessible via localhost.
 
 ### Production with Ingress
 
@@ -204,18 +197,18 @@ This chart deploys the following components:
 ### Core Services
 
 - **PostgreSQL**: Database for storing change events and configuration
-- **Redis**: Message broker for Celery task queue
-- **API**: Flask backend service (port 8000)
-- **Celery Worker**: Background task processor for connector syncing
-- **Celery Beat**: Scheduler for periodic tasks
-- **Frontend**: React/Vite-based web interface (port 5174)
+- **Redis**: Cache and queue storage for BullMQ (used by backend)
+- **Backend**: NestJS API service with BullMQ queue processing (port 8000)
+- **Frontend**: Production-built React app served by nginx (port 80)
 
 ### Supporting Resources
 
-- **ServiceAccount**: Kubernetes identity for the API pod
+- **ServiceAccount**: Kubernetes identity for the backend pod
 - **ClusterRole**: Read-only permissions for Kubernetes resources (pods, deployments, configmaps, etc.)
 - **ClusterRoleBinding**: Binds the ClusterRole to the ServiceAccount
 - **DB Init Job**: Helm hook that automatically initializes the database schema on install/upgrade
+
+**Note**: The backend uses BullMQ (built into the NestJS service) for background job processing. There are no separate worker or beat containers needed.
 
 ### RBAC for Kubernetes Monitoring
 
@@ -287,6 +280,7 @@ If the frontend shows outdated code after upgrading:
    ```bash
    cd /path/to/PainChain/frontend
    docker build -t ghcr.io/painchain/painchain-frontend:main .
+   # If using k3d:
    k3d image import ghcr.io/painchain/painchain-frontend:main -c painchain-dev
    ```
 
@@ -294,6 +288,22 @@ If the frontend shows outdated code after upgrading:
    ```bash
    kubectl delete pod -n painchain -l app.kubernetes.io/component=frontend
    ```
+
+### Port Forward Connection Refused
+
+If you get "connection refused" when port-forwarding:
+
+1. Check the service is using the correct port (80 for frontend, 8000 for backend):
+   ```bash
+   kubectl get svc -n painchain
+   ```
+
+2. Check the pod is actually listening on the expected port:
+   ```bash
+   kubectl get pod -n painchain -l app.kubernetes.io/component=frontend -o yaml | grep containerPort
+   ```
+
+3. If upgrading from an older version, the old images may use different ports. Rebuild with the latest Dockerfiles.
 
 ### Pods Stuck in Pending (Disk Pressure)
 
@@ -326,10 +336,10 @@ Verify RBAC resources are created:
 kubectl get serviceaccount,clusterrole,clusterrolebinding -n painchain
 ```
 
-Check that the API pod is using the ServiceAccount:
+Check that the backend pod is using the ServiceAccount:
 
 ```bash
-kubectl get pod -n painchain -l app.kubernetes.io/component=api -o yaml | grep serviceAccountName
+kubectl get pod -n painchain -l app.kubernetes.io/component=backend -o yaml | grep serviceAccountName
 ```
 
 ## License

@@ -40,8 +40,10 @@ spec:
         env:
         - name: DATABASE_URL
           value: "postgresql://{{ .Values.postgresql.auth.username }}:{{ .Values.postgresql.auth.password }}@{{ include "painchain.fullname" . }}-postgresql:5432/{{ .Values.postgresql.auth.database }}"
-        - name: REDIS_URL
-          value: "redis://{{ include "painchain.fullname" . }}-redis:6379/0"
+        - name: REDIS_HOST
+          value: "{{ include "painchain.fullname" . }}-redis"
+        - name: REDIS_PORT
+          value: "6379"
         - name: NODE_ENV
           value: {{ .Values.backend.env.NODE_ENV | quote }}
         - name: PORT
@@ -96,12 +98,9 @@ spec:
       - name: frontend
         image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
-        env:
-        - name: VITE_API_URL
-          value: {{ .Values.frontend.apiUrl | quote }}
         ports:
         - name: http
-          containerPort: 5174
+          containerPort: 80
           protocol: TCP
         livenessProbe:
           httpGet:
