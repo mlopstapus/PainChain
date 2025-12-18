@@ -3,7 +3,7 @@
 
 # Global settings
 global:
-  imagePullPolicy: IfNotPresent  # Use local images if available, otherwise pull
+  imagePullPolicy: Always  # Use local images if available, otherwise pull
 
 # Namespace configuration
 namespace:
