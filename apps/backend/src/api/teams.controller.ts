@@ -9,7 +9,7 @@ import { CreateTeamDto, UpdateTeamDto } from '@painchain/types'
  * Handles CRUD operations for teams.
  */
 @ApiTags('teams')
-@Controller('api/teams')
+@Controller('teams')
 export class TeamsController {
   constructor(private prisma: PrismaService) {}
 

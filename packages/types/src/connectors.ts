@@ -9,6 +9,8 @@ export interface Connection {
   config: Record<string, any>
   enabled: boolean
   lastSync: Date | null
+  webhookSecret?: string | null
+  lastWebhook?: Date | null
   createdAt: Date
   updatedAt: Date
 }
@@ -86,12 +88,14 @@ export interface CreateConnectionDto {
   type: string
   config: Record<string, any>
   enabled?: boolean
+  webhookSecret?: string
 }
 
 export interface UpdateConnectionDto {
   name?: string
   config?: Record<string, any>
   enabled?: boolean
+  webhookSecret?: string
 }
 
 export interface TestConnectionDto {

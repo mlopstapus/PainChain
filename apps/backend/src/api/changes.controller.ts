@@ -8,7 +8,7 @@ import { PrismaService } from '../database/prisma.service'
  * Handles endpoints for querying change events.
  */
 @ApiTags('changes')
-@Controller('api/changes')
+@Controller('changes')
 export class ChangesController {
   constructor(private prisma: PrismaService) {}
 

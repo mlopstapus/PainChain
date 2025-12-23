@@ -12,7 +12,7 @@ import { existsSync } from 'fs'
  * All connectors are auto-discovered from the connectors/ directory.
  */
 @ApiTags('connectors')
-@Controller('api/connectors')
+@Controller('connectors')
 export class ConnectorsController {
   constructor(private connectorService: ConnectorService) {}
 

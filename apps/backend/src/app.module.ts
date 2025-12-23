@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
-import { ScheduleModule } from '@nestjs/schedule'
 import { DatabaseModule } from './database/database.module'
 import { ApiModule } from './api/api.module'
 import { ConnectorsModule } from './connectors/connectors.module'
-import { QueueModule } from './queue/queue.module'
+import { EventsModule } from './events/events.module'
+import { WebhooksModule } from './webhooks/webhooks.module'
 
 @Module({
   imports: [
@@ -14,17 +14,17 @@ import { QueueModule } from './queue/queue.module'
       envFilePath: '.env',
     }),
 
-    // Scheduling (for cron jobs)
-    ScheduleModule.forRoot(),
-
     // Database (Prisma)
     DatabaseModule,
 
+    // Events (unified event ingestion)
+    EventsModule,
+
+    // Webhooks (GitHub/GitLab)
+    WebhooksModule,
+
     // Connectors (auto-discovery)
     ConnectorsModule,
-
-    // Queue (BullMQ)
-    QueueModule,
 
     // API Controllers
     ApiModule,

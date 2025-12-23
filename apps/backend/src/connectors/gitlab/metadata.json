@@ -4,6 +4,19 @@
   "color": "#fc6d26",
   "logo": "gitlab.png",
   "description": "Track merge requests, releases, pipeline runs, and commits from GitLab projects",
+  "webhookSupport": {
+    "enabled": true,
+    "url": "https://your-painchain-domain.com/api/webhooks/gitlab/{connectionId}",
+    "instructions": [
+      "1. Go to your GitLab project settings",
+      "2. Navigate to Settings > Webhooks",
+      "3. Set URL to the webhook URL above (replace {connectionId} with your connection ID)",
+      "4. Set Secret Token to your connection's webhook secret",
+      "5. Select trigger events: Push events, Merge request events, Pipeline events, Releases events",
+      "6. Ensure 'Enable SSL verification' is checked",
+      "7. Click 'Add webhook'"
+    ]
+  },
   "connectionForm": {
     "fields": [
       {
@@ -18,18 +31,16 @@
         "label": "Token",
         "type": "password",
         "placeholder": "Enter GitLab Personal Access Token",
+        "help": "Used for API access and manual sync. Required even when using webhooks.",
         "required": true
       },
       {
-        "key": "pollInterval",
-        "label": "Poll Interval (seconds)",
-        "type": "number",
-        "placeholder": "300",
-        "default": "300",
-        "min": 60,
-        "max": 3600,
-        "help": "How often to poll for changes. Minimum: 60 seconds to avoid rate limiting.",
-        "required": true
+        "key": "webhookSecret",
+        "label": "Webhook Secret",
+        "type": "password",
+        "placeholder": "Generate random string (e.g., openssl rand -hex 32)",
+        "help": "Secret token used to verify webhook authenticity. Use when configuring webhook in GitLab. Leave empty to skip webhook setup and use manual sync only.",
+        "required": false
       },
       {
         "key": "repos",

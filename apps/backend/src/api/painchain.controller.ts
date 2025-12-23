@@ -8,7 +8,7 @@ import { PrismaService } from '../database/prisma.service'
  * Handles endpoints for PainChain system events logging.
  */
 @ApiTags('painchain')
-@Controller('api/painchain')
+@Controller('painchain')
 export class PainchainController {
   constructor(private prisma: PrismaService) {}
 

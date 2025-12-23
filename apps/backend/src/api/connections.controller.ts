@@ -1,8 +1,7 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe } from '@nestjs/common'
+import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe, NotFoundException } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { PrismaService } from '../database/prisma.service'
 import { ConnectorService } from '../connectors/connector.service'
-import { QueueService } from '../queue/queue.service'
 import { CreateConnectionDto, UpdateConnectionDto, TestConnectionDto } from '@painchain/types'
 
 /**
@@ -11,12 +10,11 @@ import { CreateConnectionDto, UpdateConnectionDto, TestConnectionDto } from '@pa
  * Handles CRUD operations for connector connections.
  */
 @ApiTags('connections')
-@Controller('api/connections')
+@Controller('connections')
 export class ConnectionsController {
   constructor(
     private prisma: PrismaService,
     private connectorService: ConnectorService,
-    private queueService: QueueService,
   ) {}
 
   /**
@@ -48,21 +46,15 @@ export class ConnectionsController {
   @Post()
   @ApiOperation({ summary: 'Create a new connection' })
   async createConnection(@Body() dto: CreateConnectionDto) {
-    const connection = await this.prisma.connection.create({
+    return await this.prisma.connection.create({
       data: {
         name: dto.name,
         type: dto.type,
         config: dto.config,
         enabled: dto.enabled ?? true,
+        webhookSecret: dto.webhookSecret || null,
       },
     })
-
-    // Queue initial poll if enabled
-    if (connection.enabled) {
-      await this.queueService.queueConnectorPoll(connection.id)
-    }
-
-    return connection
   }
 
   /**
@@ -111,7 +103,30 @@ export class ConnectionsController {
   @Post(':id/sync')
   @ApiOperation({ summary: 'Manually trigger connector sync' })
   async syncConnection(@Param('id', ParseIntPipe) id: number) {
-    await this.queueService.queueConnectorPoll(id, 1) // High priority
-    return { message: 'Sync queued' }
+    // Load connection
+    const connection = await this.prisma.connection.findUnique({
+      where: { id },
+    })
+
+    if (!connection) {
+      throw new NotFoundException('Connection not found')
+    }
+
+    // Create connector instance
+    const connector = await this.connectorService.createConnector(
+      connection.type,
+      connection.config as Record<string, any>
+    )
+
+    // Execute sync directly (no queue)
+    const result = await connector.sync(id)
+
+    // Update lastSync
+    await this.prisma.connection.update({
+      where: { id },
+      data: { lastSync: new Date() },
+    })
+
+    return result
   }
 }

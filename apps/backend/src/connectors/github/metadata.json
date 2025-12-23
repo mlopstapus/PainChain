@@ -4,6 +4,19 @@
   "color": "#9f7aea",
   "logo": "github.png",
   "description": "Track pull requests, releases, workflow runs, and commits from GitHub repositories",
+  "webhookSupport": {
+    "enabled": true,
+    "url": "https://your-painchain-domain.com/api/webhooks/github/{connectionId}",
+    "instructions": [
+      "1. Go to your GitHub repository settings",
+      "2. Navigate to Settings > Webhooks > Add webhook",
+      "3. Set Payload URL to the webhook URL above (replace {connectionId} with your connection ID)",
+      "4. Set Content type to: application/json",
+      "5. Set Secret to your connection's webhook secret",
+      "6. Select individual events: Pull requests, Pushes, Releases, Workflow runs, Packages",
+      "7. Ensure 'Active' is checked and save"
+    ]
+  },
   "connectionForm": {
     "fields": [
       {
@@ -35,18 +48,16 @@
         "label": "Token",
         "type": "password",
         "placeholder": "Enter GitHub Personal Access Token",
+        "help": "Used for API access and manual sync. Required even when using webhooks.",
         "required": true
       },
       {
-        "key": "pollInterval",
-        "label": "Poll Interval (seconds)",
-        "type": "number",
-        "placeholder": "300",
-        "default": "300",
-        "min": 60,
-        "max": 3600,
-        "help": "How often to poll for changes. Minimum: 60 seconds to avoid rate limiting.",
-        "required": true
+        "key": "webhookSecret",
+        "label": "Webhook Secret",
+        "type": "password",
+        "placeholder": "Generate random string (e.g., openssl rand -hex 32)",
+        "help": "Secret used to verify webhook authenticity. Use when configuring webhook in GitHub. Leave empty to skip webhook setup and use manual sync only.",
+        "required": false
       },
       {
         "key": "repos",

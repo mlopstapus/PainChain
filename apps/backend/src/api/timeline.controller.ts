@@ -8,7 +8,7 @@ import { PrismaService } from '../database/prisma.service'
  * Handles timeline aggregation and visualization endpoints.
  */
 @ApiTags('timeline')
-@Controller('api/timeline')
+@Controller('timeline')
 export class TimelineController {
   constructor(private prisma: PrismaService) {}
 

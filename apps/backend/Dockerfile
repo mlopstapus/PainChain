@@ -1,10 +1,8 @@
 # Backend Dockerfile for PainChain NestJS API
-# Use Alpine 3.20 to avoid busybox QEMU issues on ARM64
 FROM node:20-alpine3.20 AS base
 
-# Install OpenSSL (required by Prisma) and pnpm
-RUN apk add --no-cache openssl openssl-dev && \
-    npm install -g pnpm@8.15.0
+# Install OpenSSL (required by Prisma)
+RUN apk add --no-cache openssl openssl-dev
 
 # Build stage
 FROM base AS builder
@@ -12,53 +10,50 @@ FROM base AS builder
 WORKDIR /app
 
 # Copy workspace configuration
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json package-lock.json ./
 COPY turbo.json ./
 
 # Copy packages
 COPY packages ./packages
-
-# Copy backend app
 COPY apps/backend ./apps/backend
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN npm ci
 
 # Generate Prisma Client
-RUN cd apps/backend && pnpm prisma generate
+RUN cd apps/backend && npx prisma generate
 
-# Build the application
-RUN pnpm build --filter=@painchain/backend
+# Build the types package first
+RUN npm run build --workspace=@painchain/types
+
+# Build the backend application
+RUN npm run build --workspace=@painchain/backend
 
 # Production stage
 FROM base AS production
 
 WORKDIR /app
 
-# Copy workspace configuration
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+# Copy workspace files
+COPY package.json package-lock.json ./
 COPY turbo.json ./
 
-# Copy packages
-COPY packages ./packages
-
-# Copy backend app
+# Copy package.json for all packages
+COPY packages/types/package.json ./packages/types/
 COPY apps/backend/package.json ./apps/backend/
-COPY --from=builder /app/apps/backend/prisma ./apps/backend/prisma
 
-# Install all dependencies (including Prisma CLI)
-RUN pnpm install --frozen-lockfile --filter=@painchain/backend
+# Install production dependencies
+RUN npm ci --omit=dev
 
-# Copy built application from builder
+# Copy built application
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
 COPY --from=builder /app/packages/types/dist ./packages/types/dist
-
-WORKDIR /app/apps/backend
+COPY --from=builder /app/apps/backend/prisma ./apps/backend/prisma
 
 # Generate Prisma client
-RUN pnpm prisma generate
+RUN cd apps/backend && npx prisma generate
 
 EXPOSE 8000
 
 # Start the application
-CMD ["node", "dist/main.js"]
+CMD ["node", "apps/backend/dist/main.js"]

@@ -39,15 +39,17 @@ model ChangeEvent {
 }
 
 model Connection {
-  id         Int       @id @default(autoincrement())
-  name       String
-  type       String
-  config     Json
-  enabled    Boolean   @default(true)
-  tags       String?
-  lastSync   DateTime? @map("last_sync")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  id            Int       @id @default(autoincrement())
+  name          String
+  type          String
+  config        Json
+  enabled       Boolean   @default(true)
+  tags          String?
+  lastSync      DateTime? @map("last_sync")
+  webhookSecret String?   @map("webhook_secret")
+  lastWebhook   DateTime? @map("last_webhook")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   events ChangeEvent[]
   teams  TeamConnection[]
