@@ -27,43 +27,19 @@
         "required": true
       },
       {
-        "key": "token",
-        "label": "Token",
-        "type": "password",
-        "placeholder": "Enter GitLab Personal Access Token",
-        "help": "Used for API access and manual sync. Required even when using webhooks.",
-        "required": true
-      },
-      {
         "key": "webhookSecret",
         "label": "Webhook Secret",
         "type": "password",
-        "placeholder": "Generate random string (e.g., openssl rand -hex 32)",
-        "help": "Secret token used to verify webhook authenticity. Use when configuring webhook in GitLab. Leave empty to skip webhook setup and use manual sync only.",
-        "required": false
-      },
-      {
-        "key": "repos",
-        "label": "Project IDs",
-        "type": "text",
-        "placeholder": "76910432,12345678",
-        "help": "Comma-separated numeric project IDs (recommended) or project paths (group/project). Leave empty for all projects. Find Project ID in GitLab project settings.",
-        "required": false
-      },
-      {
-        "key": "branches",
-        "label": "Branches",
-        "type": "text",
-        "placeholder": "main,develop,staging",
-        "help": "Comma-separated branch names to track commits from.",
+        "placeholder": "Click 'Generate' or provide your own secret",
+        "help": "Secret token used to verify webhook authenticity. Required for webhook setup in GitLab.",
         "required": false
       },
       {
         "key": "tags",
         "label": "Tags",
         "type": "text",
-        "placeholder": "tag1,tag2,tag3",
-        "help": "Comma-separated tags for filtering events by team.",
+        "placeholder": "team-frontend, staging, monitoring",
+        "help": "Comma-separated tags for organizing and filtering events.",
         "required": false
       }
     ]

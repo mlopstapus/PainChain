@@ -33,11 +33,11 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend API Service (NestJS with BullMQ)
+  # Backend API Service (NestJS with Frontend)
   backend:
     build:
       context: .
-      dockerfile: apps/backend/Dockerfile
+      dockerfile: Dockerfile
     container_name: painchain-backend
     restart: unless-stopped
     environment:
@@ -59,20 +59,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  # Frontend (React Dashboard)
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: painchain-frontend
-    restart: unless-stopped
-    environment:
-      VITE_API_URL: http://localhost:8000
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
 
 volumes:
   postgres_data:

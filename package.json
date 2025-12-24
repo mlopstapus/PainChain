@@ -5,7 +5,8 @@
   "description": "Unified Change Management & Incident Investigation",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "frontend"
   ],
   "scripts": {
     "dev": "turbo run dev",

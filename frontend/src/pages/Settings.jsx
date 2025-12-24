@@ -40,6 +40,9 @@ function Settings() {
   const [connectorTypes, setConnectorTypes] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [connectorMetadata, setConnectorMetadata] = useState({})
+  const [showWebhookGuide, setShowWebhookGuide] = useState(false)
+  const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false)
+  const [copiedSecret, setCopiedSecret] = useState(false)
 
   // Load connector types and metadata on mount
   useEffect(() => {
@@ -604,8 +607,37 @@ function Settings() {
     setSelectedConnection(null)
     setConfig(initializeConfig(type))
     setTestResult(null)
+    setShowWebhookGuide(true) // Auto-expand webhook guide for new connections
     // Capture initial field visibility state
     setInitialFieldVisibility(getFieldVisibility())
+  }
+
+  const copyToClipboard = async (text, setCopiedState) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedState(true)
+      setTimeout(() => setCopiedState(false), 2000)
+      showToast('Copied to clipboard!', 'success')
+    } catch (err) {
+      showToast('Failed to copy', 'error')
+    }
+  }
+
+  const getWebhookUrl = (connectorType, connectionId) => {
+    const baseUrl = window.location.origin.replace(':5173', ':8000') // Handle dev mode
+    if (connectionId) {
+      return `${baseUrl}/api/webhooks/${connectorType}/${connectionId}`
+    }
+    return `${baseUrl}/api/webhooks/${connectorType}/{connectionId}`
+  }
+
+  const generateWebhookSecret = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    let secret = ''
+    for (let i = 0; i < 32; i++) {
+      secret += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return secret
   }
 
   const groupConnectionsByType = () => {
@@ -892,7 +924,139 @@ function Settings() {
                     )
                   })
                 })()}
+              </div>
 
+              {/* Webhook Setup Section */}
+              {(newConnectionType === 'github' || newConnectionType === 'gitlab' || selectedConnection?.type === 'github' || selectedConnection?.type === 'gitlab') && (
+                <div className="config-section webhook-setup-section">
+                  <div
+                    className="webhook-header"
+                    onClick={() => setShowWebhookGuide(!showWebhookGuide)}
+                    style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  >
+                    <div>
+                      <h4>Webhook Setup {creatingNew && <span className="required-badge">Required</span>}</h4>
+                      <p className="section-description">Configure webhooks to receive real-time updates</p>
+                    </div>
+                    <span style={{ fontSize: '20px', transition: 'transform 0.2s', transform: showWebhookGuide ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
+                  </div>
+
+                  {showWebhookGuide && (
+                    <div className="webhook-guide">
+                      {/* Step 1: Webhook URL */}
+                      <div className="setup-step">
+                        <div className="step-header">
+                          <span className="step-number">1</span>
+                          <h5>Copy your webhook URL</h5>
+                        </div>
+                        <div className="webhook-url-container">
+                          <code className="webhook-url">
+                            {getWebhookUrl(creatingNew ? newConnectionType : selectedConnection?.type, selectedConnection?.id)}
+                          </code>
+                          <button
+                            className="btn-copy"
+                            onClick={() => copyToClipboard(
+                              getWebhookUrl(creatingNew ? newConnectionType : selectedConnection?.type, selectedConnection?.id),
+                              setCopiedWebhookUrl
+                            )}
+                          >
+                            {copiedWebhookUrl ? '✓ Copied' : 'Copy'}
+                          </button>
+                        </div>
+                        {creatingNew && (
+                          <p className="step-note">⚠️ The {'{connectionId}'} will be filled in after you create this connection</p>
+                        )}
+                      </div>
+
+                      {/* Step 2: Configure in GitHub/GitLab */}
+                      <div className="setup-step">
+                        <div className="step-header">
+                          <span className="step-number">2</span>
+                          <h5>Configure webhook in {connectorTypes.find(t => t.id === (creatingNew ? newConnectionType : selectedConnection?.type))?.name}</h5>
+                        </div>
+
+                        {(newConnectionType === 'github' || selectedConnection?.type === 'github') && (
+                          <div className="setup-instructions">
+                            <ol>
+                              <li>Go to your repository settings → <strong>Webhooks</strong> → <strong>Add webhook</strong></li>
+                              <li>Paste the webhook URL into the <strong>Payload URL</strong> field</li>
+                              <li>Set <strong>Content type</strong> to <code>application/json</code></li>
+                              <li>Choose which events to trigger (we recommend <strong>Push events</strong>, <strong>Pull requests</strong>, and <strong>Releases</strong>)</li>
+                              <li>Copy the webhook secret below and paste it into the <strong>Secret</strong> field</li>
+                              <li>Click <strong>Add webhook</strong></li>
+                            </ol>
+                          </div>
+                        )}
+
+                        {(newConnectionType === 'gitlab' || selectedConnection?.type === 'gitlab') && (
+                          <div className="setup-instructions">
+                            <ol>
+                              <li>Go to your project settings → <strong>Webhooks</strong> → <strong>Add new webhook</strong></li>
+                              <li>Paste the webhook URL into the <strong>URL</strong> field</li>
+                              <li>Copy the webhook secret below and paste it into the <strong>Secret token</strong> field</li>
+                              <li>Select triggers: <strong>Push events</strong>, <strong>Merge request events</strong>, <strong>Pipeline events</strong>, etc.</li>
+                              <li>Click <strong>Add webhook</strong></li>
+                            </ol>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Step 3: Webhook Secret */}
+                      <div className="setup-step">
+                        <div className="step-header">
+                          <span className="step-number">3</span>
+                          <h5>Set webhook secret</h5>
+                        </div>
+                        <p className="step-description">
+                          Generate a secret to secure your webhook. Copy this and paste it into {connectorTypes.find(t => t.id === (creatingNew ? newConnectionType : selectedConnection?.type))?.name}.
+                        </p>
+                        <div className="webhook-secret-container">
+                          <input
+                            type="text"
+                            className="form-input webhook-secret-input"
+                            placeholder="Click generate or enter your own secret"
+                            value={config.webhookSecret || ''}
+                            onChange={(e) => setConfig({...config, webhookSecret: e.target.value})}
+                          />
+                          <button
+                            className="btn-generate"
+                            onClick={() => setConfig({...config, webhookSecret: generateWebhookSecret()})}
+                          >
+                            Generate
+                          </button>
+                          {config.webhookSecret && (
+                            <button
+                              className="btn-copy"
+                              onClick={() => copyToClipboard(config.webhookSecret, setCopiedSecret)}
+                            >
+                              {copiedSecret ? '✓ Copied' : 'Copy'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Step 4: Test */}
+                      <div className="setup-step">
+                        <div className="step-header">
+                          <span className="step-number">4</span>
+                          <h5>Test your webhook</h5>
+                        </div>
+                        <p className="step-description">
+                          After configuring the webhook, make a test push or create a test event in {connectorTypes.find(t => t.id === (creatingNew ? newConnectionType : selectedConnection?.type))?.name}.
+                          You should see events appearing in your PainChain timeline.
+                        </p>
+                      </div>
+
+                      <div className="webhook-info-box">
+                        <p><strong>💡 Tip:</strong> Webhooks provide real-time updates and are more efficient than polling.
+                        Once configured, you'll receive instant notifications of changes.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="config-section">
                 <button
                   className="btn-test-connection"
                   onClick={handleTestConnection}

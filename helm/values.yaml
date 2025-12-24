@@ -40,12 +40,12 @@ redis:
       memory: 128Mi
       cpu: 50m
 
-# Backend Service (NestJS)
-backend:
+# Application Service (NestJS API + React Frontend)
+app:
   enabled: true
   replicaCount: 1
   image:
-    repository: ghcr.io/painchain/painchain-backend
+    repository: ghcr.io/painchain/painchain-app
     tag: main
   service:
     type: ClusterIP
@@ -56,25 +56,6 @@ backend:
     requests:
       memory: 512Mi
       cpu: 250m
-
-# Frontend
-frontend:
-  enabled: true
-  replicaCount: 1
-  image:
-    repository: ghcr.io/painchain/painchain-frontend
-    tag: main
-  service:
-    type: ClusterIP
-    port: 5173
-  # API URL for the frontend
-  # For local port-forwarding: use "http://localhost:8000"
-  # For ingress/production: use your ingress URL or internal service name
-  apiUrl: "http://localhost:8000"
-  resources:
-    requests:
-      memory: 256Mi
-      cpu: 100m
 
   tls: []
   # Example TLS configuration:

@@ -27,60 +27,19 @@
         "required": true
       },
       {
-        "key": "isEnterprise",
-        "label": "GitHub Enterprise",
-        "type": "checkbox",
-        "help": "Check this if connecting to GitHub Enterprise Server",
-        "required": false,
-        "default": false
-      },
-      {
-        "key": "baseUrl",
-        "label": "Enterprise API URL",
-        "type": "text",
-        "placeholder": "https://github.mycompany.com/api/v3",
-        "help": "Your GitHub Enterprise Server API endpoint",
-        "required": false,
-        "conditionalOn": "isEnterprise"
-      },
-      {
-        "key": "token",
-        "label": "Token",
-        "type": "password",
-        "placeholder": "Enter GitHub Personal Access Token",
-        "help": "Used for API access and manual sync. Required even when using webhooks.",
-        "required": true
-      },
-      {
         "key": "webhookSecret",
         "label": "Webhook Secret",
         "type": "password",
-        "placeholder": "Generate random string (e.g., openssl rand -hex 32)",
-        "help": "Secret used to verify webhook authenticity. Use when configuring webhook in GitHub. Leave empty to skip webhook setup and use manual sync only.",
-        "required": false
-      },
-      {
-        "key": "repos",
-        "label": "Repositories",
-        "type": "text",
-        "placeholder": "owner/repo1,owner/repo2",
-        "help": "Comma-separated list. Leave empty for all repos.",
-        "required": false
-      },
-      {
-        "key": "branches",
-        "label": "Branches",
-        "type": "text",
-        "placeholder": "main,develop,staging",
-        "help": "Comma-separated branch names to track commits from.",
+        "placeholder": "Click 'Generate' or provide your own secret",
+        "help": "Secret used to verify webhook authenticity. Required for webhook setup in GitHub.",
         "required": false
       },
       {
         "key": "tags",
         "label": "Tags",
         "type": "text",
-        "placeholder": "tag1,tag2,tag3",
-        "help": "Comma-separated tags for filtering events by team.",
+        "placeholder": "team-backend, production, critical",
+        "help": "Comma-separated tags for organizing and filtering events.",
         "required": false
       }
     ]

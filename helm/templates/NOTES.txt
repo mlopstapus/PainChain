@@ -9,32 +9,25 @@ To learn more about the release, try:
 
 To access your application:
 
-{{- if eq .Values.frontend.service.type "NodePort" }}
-1. Get the frontend URL by running:
+{{- if eq .Values.app.service.type "NodePort" }}
+1. Get the application URL by running:
 
-
-  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "painchain.fullname" . }}-frontend)
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "painchain.fullname" . }}-app)
   export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
   echo http://$NODE_IP:$NODE_PORT
 
-{{- else if eq .Values.frontend.service.type "LoadBalancer" }}
+{{- else if eq .Values.app.service.type "LoadBalancer" }}
   NOTE: It may take a few minutes for the LoadBalancer IP to be available.
-  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "painchain.fullname" . }}-frontend --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
-  echo http://$SERVICE_IP:{{ .Values.frontend.service.port }}
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "painchain.fullname" . }}-app --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.app.service.port }}
 
-{{- else if eq .Values.frontend.service.type "ClusterIP" }}
-  # Terminal 1: Forward the backend API
-  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "painchain.fullname" . }}-backend {{ .Values.backend.service.port }}:{{ .Values.backend.service.port }}
+{{- else if eq .Values.app.service.type "ClusterIP" }}
+  # Forward the application (API + Frontend)
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "painchain.fullname" . }}-app {{ .Values.app.service.port }}:{{ .Values.app.service.port }}
 
-  # Terminal 2: Forward the frontend
-  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "painchain.fullname" . }}-frontend {{ .Values.frontend.service.port }}:{{ .Values.frontend.service.port }}
-
-  echo "Visit http://127.0.0.1:{{ .Values.frontend.service.port }} to use your application"
-  echo "Backend API available at http://127.0.0.1:{{ .Values.backend.service.port }}"
+  echo "Visit http://127.0.0.1:{{ .Values.app.service.port }} to use your application"
+  echo "The application serves both the frontend UI and API endpoints"
 {{- end }}
-
-IMPORTANT: You must run BOTH port-forward commands above (in separate terminals) for the application to work properly.
-The frontend makes API calls to the backend at http://localhost:{{ .Values.backend.service.port }}
 
 Database credentials:
   Username: {{ .Values.postgresql.auth.username }}

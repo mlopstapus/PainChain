@@ -1,50 +1,122 @@
 # Dependencies
 node_modules
-**/node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+.pnpm-store
 
-# Build outputs
-dist
-**/dist
+# Build outputs (keep source, exclude built files)
+# dist - needed for building
 build
-**/build
+out
+.next
+.turbo
+*.tsbuildinfo
+apps/backend/dist
+packages/types/dist
 
-# Development files
+# Environment files
+.env
 .env.local
+.env.development
+.env.test
+.env.production
 .env.*.local
+*.env
 
-# Git
-.git
-.gitignore
-
-# IDE
+# IDE and editor files
 .vscode
 .idea
 *.swp
 *.swo
-
-# Logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+*~
+.DS_Store
+.history
 
 # Testing
 coverage
 .nyc_output
+*.lcov
+test-results
+playwright-report
 
-# Misc
-.DS_Store
-*.pem
+# Git
+.git
+.gitignore
+.gitattributes
 
 # Docker
 Dockerfile
-docker-compose*.yml
 .dockerignore
-
-# Documentation
-*.md
-docs/
+docker-compose.yml
+docker-compose.*.yml
 
 # CI/CD
-.github/
+.github
+.gitlab-ci.yml
+.travis.yml
+.circleci
+
+# Documentation
+README.md
+*.md
+docs
+LICENSE
+
+# Logs
+logs
+*.log
+
+# OS files
+Thumbs.db
+ehthumbs.db
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Database
+*.sqlite
+*.db
+*.sql
+postgres_data
+
+# Frontend specific (exclude built files, but keep source for building)
+frontend/dist
+frontend/node_modules
+
+# Backend source (already built, TypeScript source not needed in final image)
+# Note: We still need to copy source in builder stage for compilation
+# apps/backend/src
+
+# Test files
+**/*.test.js
+**/*.test.ts
+**/*.spec.js
+**/*.spec.ts
+**/__tests__
+**/__mocks__
+
+# Kubernetes configs
+k8s
+*.yaml
+*.yml
+!turbo.json
+
+# Scripts
+scripts
+tools
+
+# Python
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+
+# Misc
+.cache
+.parcel-cache
+.eslintcache
+*.bak
+*.orig

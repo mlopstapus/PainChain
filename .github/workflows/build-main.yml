@@ -19,12 +19,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: backend
+          - name: app
             context: .
-            dockerfile: ./apps/backend/Dockerfile
-          - name: frontend
-            context: ./frontend
-            dockerfile: ./frontend/Dockerfile
+            dockerfile: ./Dockerfile
 
     steps:
       - name: Checkout repository

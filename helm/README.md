@@ -82,28 +82,16 @@ The following table lists the configurable parameters of the PainChain chart and
 | `redis.image.repository` | Redis image repository | `redis` |
 | `redis.image.tag` | Redis image tag | `7-alpine` |
 
-### API Parameters
+### Application Parameters
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `api.enabled` | Enable API service | `true` |
-| `api.replicaCount` | Number of API replicas | `1` |
-| `api.image.repository` | API image repository | `ghcr.io/painchain/painchain-api` |
-| `api.image.tag` | API image tag | `main` |
-| `api.service.type` | Kubernetes service type | `ClusterIP` |
-| `api.service.port` | Service port | `8000` |
-
-### Frontend Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `frontend.enabled` | Enable Frontend | `true` |
-| `frontend.replicaCount` | Number of Frontend replicas | `1` |
-| `frontend.image.repository` | Frontend image repository | `ghcr.io/painchain/painchain-frontend` |
-| `frontend.image.tag` | Frontend image tag | `main` |
-| `frontend.service.type` | Kubernetes service type | `ClusterIP` |
-| `frontend.service.port` | Service port | `80` |
-| `frontend.apiUrl` | API URL for frontend (baked in at build time) | `http://localhost:8000` |
+| `app.enabled` | Enable application service | `true` |
+| `app.replicaCount` | Number of application replicas | `1` |
+| `app.image.repository` | Application image repository | `ghcr.io/painchain/painchain-app` |
+| `app.image.tag` | Application image tag | `main` |
+| `app.service.type` | Kubernetes service type | `ClusterIP` |
+| `app.service.port` | Service port | `8000` |
 
 ### Ingress Parameters
 
@@ -122,43 +110,36 @@ After installation, follow the notes printed by Helm to access your PainChain in
 
 The default configuration is suitable for local development with port-forwarding.
 
-**Important**: You must forward BOTH services for the application to work:
-
 ```bash
-# Terminal 1: Forward the backend API
-kubectl --namespace painchain port-forward svc/painchain-backend 8000:8000
-
-# Terminal 2: Forward the frontend (use 8080 locally to avoid needing root)
-kubectl --namespace painchain port-forward svc/painchain-frontend 8080:80
+# Forward the application (serves both frontend and API)
+kubectl --namespace painchain port-forward svc/painchain-app 8000:8000
 
 # Open in browser
-open http://localhost:8080
+open http://localhost:8000
 ```
 
 **Note**:
-- The frontend now serves on port 80 inside the container via nginx (instead of port 5174 from Vite dev server)
-- We map local port 8080 → container port 80 to avoid needing root privileges
-- You can use any high port locally (8080, 3000, 5173, etc.)
+- The application serves both the React frontend and the NestJS API on port 8000
+- The frontend is a **production-built React app** served as static files by the backend
+- API endpoints are available at `/api/*` paths
 
-#### How Frontend Communicates with Backend
+#### How the Application Works
 
 ```
-Browser → http://localhost:8080 (your local machine)
+Browser → http://localhost:8000 (your local machine)
   ↓
-  Port-forward maps 8080 → 80 → Frontend pod (nginx serving React app)
+  Port-forward maps 8000 → 8000 → App pod (NestJS serving React app + API)
   ↓
-  Frontend makes API calls to http://localhost:8000 (API URL baked into build)
+  Static requests (/, /assets/*) → Served from frontend/dist directory
   ↓
-  Port-forward tunnels to painchain-backend service in cluster
-  ↓
-  Backend API pod processes request
+  API requests (/api/*) → Handled by NestJS controllers
 ```
 
-The frontend is a **production-built React app** served by nginx. It makes direct HTTP requests to the API URL which is configured at build time. When using port-forwarding, both services are accessible via localhost.
+The application is a **single container** that serves both the production-built React app and the NestJS API. This eliminates CORS issues and simplifies deployment.
 
 ### Production with Ingress
 
-For production deployments, configure an ingress to expose the frontend and API:
+For production deployments, configure an ingress to expose the application:
 
 ```bash
 helm install painchain . \
@@ -168,7 +149,7 @@ helm install painchain . \
   --namespace painchain --create-namespace
 ```
 
-When ingress is enabled, the frontend automatically uses the ingress hostname as the API URL.
+The ingress will route all traffic to the application service, which serves both the frontend UI and API endpoints.
 
 ## Upgrading
 
@@ -197,25 +178,27 @@ This chart deploys the following components:
 ### Core Services
 
 - **PostgreSQL**: Database for storing change events and configuration
-- **Redis**: Cache and queue storage for BullMQ (used by backend)
-- **Backend**: NestJS API service with BullMQ queue processing (port 8000)
-- **Frontend**: Production-built React app served by nginx (port 80)
+- **Redis**: Cache and queue storage for BullMQ
+- **Application**: Single NestJS container that serves both the React frontend and API (port 8000)
+  - Production-built React app served as static files
+  - NestJS API endpoints at `/api/*`
+  - BullMQ queue processing for background jobs
 
 ### Supporting Resources
 
-- **ServiceAccount**: Kubernetes identity for the backend pod
+- **ServiceAccount**: Kubernetes identity for the application pod
 - **ClusterRole**: Read-only permissions for Kubernetes resources (pods, deployments, configmaps, etc.)
 - **ClusterRoleBinding**: Binds the ClusterRole to the ServiceAccount
 - **DB Init Job**: Helm hook that automatically initializes the database schema on install/upgrade
 
-**Note**: The backend uses BullMQ (built into the NestJS service) for background job processing. There are no separate worker or beat containers needed.
+**Note**: The application uses BullMQ (built into the NestJS service) for background job processing. There are no separate worker or beat containers needed.
 
 ### RBAC for Kubernetes Monitoring
 
 The chart creates RBAC resources to enable **in-cluster Kubernetes monitoring**:
 
 **ServiceAccount** (`painchain`)
-- Provides an identity for the API pod to authenticate with the Kubernetes API
+- Provides an identity for the application pod to authenticate with the Kubernetes API
 
 **ClusterRole** (`painchain`)
 - Grants **read-only** permissions to:
@@ -234,7 +217,7 @@ These RBAC resources are **essential** if you want to:
 - ✅ Use the Kubernetes connector without manually providing tokens
 - ✅ Automatically detect pod changes, deployments, config map updates, etc.
 
-The ServiceAccount token is **automatically mounted** into the API pod at `/var/run/secrets/kubernetes.io/serviceaccount/token` and used by the Kubernetes connector for authentication.
+The ServiceAccount token is **automatically mounted** into the application pod at `/var/run/secrets/kubernetes.io/serviceaccount/token` and used by the Kubernetes connector for authentication.
 
 #### When You Can Skip RBAC
 
@@ -242,7 +225,7 @@ You can disable RBAC if:
 - ❌ You never plan to use the Kubernetes connector
 - ❌ You only monitor external clusters (by providing explicit API URLs and tokens)
 
-To disable RBAC resources, you would need to remove the template files and update the API deployment to not use the ServiceAccount.
+To disable RBAC resources, you would need to remove the template files and update the application deployment to not use the ServiceAccount.
 
 ## Production Recommendations
 
@@ -272,38 +255,38 @@ To disable RBAC resources, you would need to remove the template files and updat
 
 ## Troubleshooting
 
-### Frontend Shows "Old Version"
+### Application Shows "Old Version"
 
-If the frontend shows outdated code after upgrading:
+If the application shows outdated code after upgrading:
 
-1. Rebuild and reimport the frontend image:
+1. Rebuild and reimport the application image:
    ```bash
-   cd /path/to/PainChain/frontend
-   docker build -t ghcr.io/painchain/painchain-frontend:main .
+   cd /path/to/PainChain
+   docker build -t ghcr.io/painchain/painchain-app:main .
    # If using k3d:
-   k3d image import ghcr.io/painchain/painchain-frontend:main -c painchain-dev
+   k3d image import ghcr.io/painchain/painchain-app:main -c painchain-dev
    ```
 
-2. Delete the frontend pod to force recreation:
+2. Delete the application pod to force recreation:
    ```bash
-   kubectl delete pod -n painchain -l app.kubernetes.io/component=frontend
+   kubectl delete pod -n painchain -l app.kubernetes.io/component=app
    ```
 
 ### Port Forward Connection Refused
 
 If you get "connection refused" when port-forwarding:
 
-1. Check the service is using the correct port (80 for frontend, 8000 for backend):
+1. Check the service is using the correct port (8000 for the application):
    ```bash
    kubectl get svc -n painchain
    ```
 
 2. Check the pod is actually listening on the expected port:
    ```bash
-   kubectl get pod -n painchain -l app.kubernetes.io/component=frontend -o yaml | grep containerPort
+   kubectl get pod -n painchain -l app.kubernetes.io/component=app -o yaml | grep containerPort
    ```
 
-3. If upgrading from an older version, the old images may use different ports. Rebuild with the latest Dockerfiles.
+3. If upgrading from an older version, the old images may use different ports. Rebuild with the latest Dockerfile.
 
 ### Pods Stuck in Pending (Disk Pressure)
 
@@ -336,10 +319,10 @@ Verify RBAC resources are created:
 kubectl get serviceaccount,clusterrole,clusterrolebinding -n painchain
 ```
 
-Check that the backend pod is using the ServiceAccount:
+Check that the application pod is using the ServiceAccount:
 
 ```bash
-kubectl get pod -n painchain -l app.kubernetes.io/component=backend -o yaml | grep serviceAccountName
+kubectl get pod -n painchain -l app.kubernetes.io/component=app -o yaml | grep serviceAccountName
 ```
 
 ## License

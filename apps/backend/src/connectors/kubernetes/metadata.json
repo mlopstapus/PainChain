@@ -61,8 +61,8 @@
         "key": "tags",
         "label": "Tags",
         "type": "text",
-        "placeholder": "tag1,tag2,tag3",
-        "help": "Comma-separated tags for filtering events by team.",
+        "placeholder": "platform, production, infrastructure",
+        "help": "Comma-separated tags for organizing and filtering events.",
         "required": false
       }
     ]

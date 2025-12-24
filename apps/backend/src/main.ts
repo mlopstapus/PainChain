@@ -48,7 +48,9 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document)
 
   // Serve frontend static files (if build exists)
-  const frontendPath = join(__dirname, '../../frontend/dist')
+  const frontendPath = process.env.NODE_ENV === 'production'
+    ? join(__dirname, '../../../frontend/dist')  // In Docker: /app/apps/backend/dist -> /app/frontend/dist
+    : join(__dirname, '../../frontend/dist')     // In dev: apps/backend/dist -> frontend/dist
   try {
     app.use(express.static(frontendPath))
 

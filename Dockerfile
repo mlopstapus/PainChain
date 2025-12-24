@@ -1,4 +1,4 @@
-# Backend Dockerfile for PainChain NestJS API
+# PainChain Dockerfile - NestJS API + React Frontend
 FROM node:20-alpine3.20 AS base
 
 # Install OpenSSL (required by Prisma)
@@ -16,6 +16,7 @@ COPY turbo.json ./
 # Copy packages
 COPY packages ./packages
 COPY apps/backend ./apps/backend
+COPY frontend ./frontend
 
 # Install dependencies
 RUN npm ci
@@ -28,6 +29,9 @@ RUN npm run build --workspace=@painchain/types
 
 # Build the backend application
 RUN npm run build --workspace=@painchain/backend
+
+# Build the frontend
+RUN cd frontend && npm run build
 
 # Production stage
 FROM base AS production
@@ -49,6 +53,9 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
 COPY --from=builder /app/packages/types/dist ./packages/types/dist
 COPY --from=builder /app/apps/backend/prisma ./apps/backend/prisma
+
+# Copy built frontend
+COPY --from=builder /app/frontend/dist ./frontend/dist
 
 # Generate Prisma client
 RUN cd apps/backend && npx prisma generate

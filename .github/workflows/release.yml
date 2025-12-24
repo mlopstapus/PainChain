@@ -19,13 +19,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: backend
+          - name: app
             context: .
-            dockerfile: ./apps/backend/Dockerfile
-            build_args: ""
-          - name: frontend
-            context: ./frontend
-            dockerfile: ./frontend/Dockerfile
+            dockerfile: ./Dockerfile
             build_args: ""
 
     steps:

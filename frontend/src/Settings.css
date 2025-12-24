@@ -982,3 +982,209 @@
 .field-checkbox-label span {
   user-select: none;
 }
+
+/* Webhook Setup Section */
+.webhook-setup-section {
+  margin-top: 24px;
+  background: linear-gradient(135deg, rgba(0, 232, 160, 0.05) 0%, rgba(0, 232, 160, 0.02) 100%);
+  border: 1px solid rgba(0, 232, 160, 0.2);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.webhook-header {
+  margin-bottom: 16px;
+}
+
+.webhook-header h4 {
+  color: #ffffff;
+  font-size: 1.1em;
+  margin: 0 0 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.required-badge {
+  background: #ff4444;
+  color: #ffffff;
+  font-size: 0.7em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.webhook-guide {
+  margin-top: 20px;
+}
+
+.setup-step {
+  background: rgba(26, 31, 46, 0.6);
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.step-number {
+  background: #00E8A0;
+  color: #0f1419;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95em;
+  flex-shrink: 0;
+}
+
+.step-header h5 {
+  color: #ffffff;
+  font-size: 1em;
+  margin: 0;
+  font-weight: 600;
+}
+
+.step-description {
+  color: #b0b0b0;
+  font-size: 0.9em;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+.step-note {
+  color: #ffaa00;
+  font-size: 0.85em;
+  margin: 8px 0 0 0;
+  padding: 8px 12px;
+  background: rgba(255, 170, 0, 0.1);
+  border-left: 3px solid #ffaa00;
+  border-radius: 4px;
+}
+
+/* Webhook URL */
+.webhook-url-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.webhook-url {
+  flex: 1;
+  background: #0f1419;
+  border: 1px solid #2a3142;
+  padding: 12px 16px;
+  border-radius: 6px;
+  color: #00E8A0;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.85em;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+/* Webhook Secret */
+.webhook-secret-container {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.webhook-secret-input {
+  flex: 1;
+}
+
+/* Setup Instructions */
+.setup-instructions {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+  padding: 16px 16px 16px 20px;
+}
+
+.setup-instructions ol {
+  margin: 0;
+  padding-left: 20px;
+  color: #e0e0e0;
+}
+
+.setup-instructions li {
+  margin-bottom: 12px;
+  line-height: 1.6;
+  font-size: 0.9em;
+}
+
+.setup-instructions li:last-child {
+  margin-bottom: 0;
+}
+
+.setup-instructions strong {
+  color: #00E8A0;
+  font-weight: 600;
+}
+
+.setup-instructions code {
+  background: rgba(0, 232, 160, 0.1);
+  color: #00E8A0;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+}
+
+/* Buttons */
+.btn-copy,
+.btn-generate {
+  background: #2a3142;
+  border: 1px solid #3a4152;
+  color: #ffffff;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9em;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-copy:hover,
+.btn-generate:hover {
+  background: #3a4152;
+  border-color: #00E8A0;
+  color: #00E8A0;
+}
+
+.btn-copy:active,
+.btn-generate:active {
+  transform: scale(0.98);
+}
+
+/* Info Box */
+.webhook-info-box {
+  background: linear-gradient(135deg, rgba(0, 232, 160, 0.08) 0%, rgba(0, 232, 160, 0.03) 100%);
+  border: 1px solid rgba(0, 232, 160, 0.2);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-top: 16px;
+}
+
+.webhook-info-box p {
+  margin: 0;
+  color: #e0e0e0;
+  font-size: 0.9em;
+  line-height: 1.6;
+}
+
+.webhook-info-box strong {
+  color: #00E8A0;
+}
