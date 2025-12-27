@@ -44,5 +44,20 @@ services:
       - ./painchain/backend/prisma.config.ts:/app/prisma.config.ts
     command: sh -c "npx prisma db push && npm run start:dev"
 
+  # GitHub Connector
+  github-connector:
+    build:
+      context: ./connectors/github
+      dockerfile: Dockerfile
+    container_name: painchain-github-connector
+    restart: unless-stopped
+    environment:
+      BACKEND_API_URL: http://backend:8000/api
+      POLLING_INTERVAL: ${GITHUB_POLLING_INTERVAL:-60}
+    depends_on:
+      - backend
+    volumes:
+      - ./connectors/github/src:/app/src
+
 volumes:
   postgres_data:
