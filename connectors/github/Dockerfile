@@ -31,6 +31,9 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
+# Copy metadata.json
+COPY metadata.json ./metadata.json
+
 # Environment variables (defaults)
 ENV BACKEND_API_URL=http://backend:8000/api
 ENV POLLING_INTERVAL=60

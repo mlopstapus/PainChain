@@ -90,7 +90,7 @@ Once the new architecture is implemented, you'll be able to run PainChain with:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/PainChain.git
+git clone https://github.com/PainChain/PainChain.git
 cd PainChain
 
 # Start core services

@@ -25,7 +25,7 @@ function App() {
             <h1>PainChain</h1>
           </div>
           <div className="header-right">
-            <a className="nav-link github-link" href="https://github.com/yourusername/painchain" target="_blank" rel="noopener noreferrer">
+            <a className="nav-link github-link" href="https://github.com/PainChain/PainChain" target="_blank" rel="noopener noreferrer">
               <img src={githubLogo} alt="GitHub Docs" className="github-icon" />
               GitHub Docs
             </a>

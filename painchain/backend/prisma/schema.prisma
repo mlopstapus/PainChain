@@ -19,6 +19,7 @@ model Tenant {
   integrations  Integration[]
   events        Event[]
   projects      Project[]
+  teams         Team[]
 
   @@map("tenants")
 }
@@ -74,4 +75,34 @@ model Project {
 
   @@unique([tenantId, name, connector])
   @@map("projects")
+}
+
+// Connector type metadata (self-registered by connectors on startup)
+model ConnectorType {
+  id            String   @id // "github", "gitlab", "kubernetes"
+  displayName   String
+  color         String?  // Hex color for UI badges
+  logo          String?  // Logo filename
+  description   String?
+  configSchema  Json     // JSON schema for integration configuration form
+  registeredAt  DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("connector_types")
+}
+
+// Teams for organizing integrations by tags
+model Team {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String   // Immutable team name (becomes first tag)
+  tags        String[] // Additional tags for filtering
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("teams")
 }

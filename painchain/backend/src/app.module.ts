@@ -4,6 +4,7 @@ import { DatabaseModule } from './database/database.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { EventsModule } from './events/events.module';
 import { ApiModule } from './api/api.module';
+import { TeamsModule } from './teams/teams.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ApiModule } from './api/api.module';
     IntegrationsModule,
     EventsModule,
     ApiModule,
+    TeamsModule,
   ],
 })
 export class AppModule {}

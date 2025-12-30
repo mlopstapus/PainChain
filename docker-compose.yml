@@ -6,9 +6,11 @@ services:
     image: postgres:16-alpine
     container_name: painchain-postgres
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       POSTGRES_USER: painchain
-      POSTGRES_PASSWORD: painchain
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-painchain}
       POSTGRES_DB: painchain
     ports:
       - "5432:5432"
@@ -20,29 +22,26 @@ services:
       timeout: 5s
       retries: 5
 
-  # PainChain Backend
-  backend:
+  # PainChain (Backend + Frontend)
+  painchain:
     build:
-      context: ./painchain/backend
+      context: ./painchain
       dockerfile: Dockerfile
-      target: development
-    container_name: painchain-backend
+      target: production
+    container_name: painchain-app
     restart: unless-stopped
     env_file:
-      - ./painchain/backend/.env
+      - .env
     environment:
       PORT: 8000
-      NODE_ENV: development
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./painchain/backend/src:/app/src
-      - ./painchain/backend/prisma:/app/prisma
-      - ./painchain/backend/prisma.config.ts:/app/prisma.config.ts
-    command: sh -c "npx prisma db push && npm run start:dev"
+    command: sh -c "npx prisma db push && node dist/src/main.js"
 
   # GitHub Connector
   github-connector:
@@ -52,10 +51,10 @@ services:
     container_name: painchain-github-connector
     restart: unless-stopped
     environment:
-      BACKEND_API_URL: http://backend:8000/api
+      BACKEND_API_URL: http://painchain:8000/api
       POLLING_INTERVAL: ${GITHUB_POLLING_INTERVAL:-60}
     depends_on:
-      - backend
+      - painchain
     volumes:
       - ./connectors/github/src:/app/src
 

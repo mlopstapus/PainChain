@@ -1,0 +1,267 @@
+import { useState, useEffect, useMemo } from 'react';
+import { useEvents } from '../hooks/useEvents';
+import { useIntegrations } from '../hooks/useIntegrations';
+import { useTeams } from '../hooks/useTeams';
+import { EventCard } from '../components/EventCard';
+import Timeline from '../components/Timeline';
+import { TagsDropdown } from '../components/TagsDropdown';
+import { DateTimePicker } from '../components/DateTimePicker';
+import type { Event } from '../types/api';
+
+export function Home() {
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  // Default to last hour (using browser local time)
+  const [startDate, setStartDate] = useState(() => {
+    const date = new Date();
+    date.setHours(date.getHours() - 1);
+    return date.toISOString();
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString());
+
+  const { integrations } = useIntegrations();
+  const { teams } = useTeams();
+
+  // Expand team selections to their tags
+  const expandedTags = useMemo(() => {
+    const expanded: string[] = [];
+
+    tagFilter.forEach(selection => {
+      if (selection.startsWith('Team: ')) {
+        // This is a team - find the team and add all its tags
+        const teamName = selection.replace('Team: ', '');
+        const team = teams.find(t => t.name === teamName);
+        if (team) {
+          expanded.push(...team.tags);
+        }
+      } else {
+        // This is a regular tag
+        expanded.push(selection);
+      }
+    });
+
+    // Remove duplicates
+    return Array.from(new Set(expanded));
+  }, [tagFilter, teams]);
+
+  const { events, loading, error, refetch } = useEvents({
+    connector: sourceFilter || undefined,
+    tags: expandedTags.length > 0 ? expandedTags : undefined,
+    limit: 100,
+  });
+
+  // Extract all unique tags from integration repository configurations and teams
+  const availableTags = useMemo(() => {
+    // Get tags from integrations
+    const integrationTags = integrations.flatMap(integration => {
+      const repos = integration.config?.repositories || [];
+      if (Array.isArray(repos)) {
+        return repos.flatMap((repo: any) => {
+          if (repo.tags && Array.isArray(repo.tags)) {
+            return repo.tags;
+          }
+          return [];
+        });
+      }
+      return [];
+    });
+
+    // Get teams with "Team: " prefix
+    const teamItems = teams.map(team => `Team: ${team.name}`);
+
+    // Combine and sort - teams first, then tags
+    const allItems = [...teamItems, ...Array.from(new Set(integrationTags))];
+    return allItems.sort((a, b) => {
+      // Teams come first
+      const aIsTeam = a.startsWith('Team: ');
+      const bIsTeam = b.startsWith('Team: ');
+      if (aIsTeam && !bIsTeam) return -1;
+      if (!aIsTeam && bIsTeam) return 1;
+      return a.localeCompare(b);
+    });
+  }, [integrations, teams]);
+
+  // Helper to get tags for a specific project
+  const getTagsForProject = (projectName: string): string[] => {
+    const tags = new Set<string>();
+    integrations.forEach(integration => {
+      const repos = integration.config?.repositories || [];
+      if (Array.isArray(repos)) {
+        repos.forEach((repo: any) => {
+          // Construct the full repository name as owner/repo
+          const fullRepoName = repo.owner && repo.repo
+            ? `${repo.owner}/${repo.repo}`
+            : repo.name || repo.repository;
+
+          if (fullRepoName === projectName && repo.tags && Array.isArray(repo.tags)) {
+            repo.tags.forEach((tag: string) => tags.add(tag));
+          }
+        });
+      }
+    });
+    return Array.from(tags);
+  };
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetch();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [refetch]);
+
+  const getTimeGroup = (timestamp: string) => {
+    const now = new Date();
+    const date = new Date(timestamp);
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 5) {
+      return 'LAST 5 MINUTES';
+    } else if (diffHours < 1) {
+      return 'LAST HOUR';
+    } else if (diffDays === 0) {
+      return 'TODAY';
+    } else if (diffDays === 1) {
+      return 'YESTERDAY';
+    } else if (diffDays < 7) {
+      const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+      return dayNames[date.getDay()];
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
+    }
+  };
+
+  const groupEventsByTime = (events: Event[]) => {
+    const groups: Array<{ label: string; events: Event[] }> = [];
+    let currentGroup: { label: string; events: Event[] } | null = null;
+
+    events.forEach((event) => {
+      const timeGroup = getTimeGroup(event.timestamp);
+
+      if (!currentGroup || currentGroup.label !== timeGroup) {
+        currentGroup = {
+          label: timeGroup,
+          events: [],
+        };
+        groups.push(currentGroup);
+      }
+
+      currentGroup.events.push(event);
+    });
+
+    return groups;
+  };
+
+  const handleTimeRangeChange = (start: string, end: string) => {
+    setStartDate(start);
+    setEndDate(end);
+  };
+
+  // Filter events by date range
+  const filteredEvents = events.filter(event => {
+    const eventTime = new Date(event.timestamp).getTime();
+    const start = new Date(startDate).getTime();
+    const end = new Date(endDate).getTime();
+    return eventTime >= start && eventTime <= end;
+  });
+
+  if (loading && events.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-text-muted">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-error">Error: {error.message}</div>
+      </div>
+    );
+  }
+
+  const groupedEvents = groupEventsByTime(filteredEvents);
+
+  return (
+    <div className="content">
+      {/* Timeline Chart */}
+      <Timeline events={filteredEvents} onTimeRangeChange={handleTimeRangeChange} />
+
+      {/* Filters */}
+      <div className="filters">
+        <div className="filter-group">
+          <label>Source:</label>
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+          >
+            <option value="">All</option>
+            <option value="github">GitHub</option>
+            <option value="gitlab">GitLab</option>
+            <option value="kubernetes">Kubernetes</option>
+          </select>
+        </div>
+
+        <div className="filter-group tags-filter">
+          <label>Tags & Teams:</label>
+          <TagsDropdown
+            availableTags={availableTags}
+            selectedTags={tagFilter}
+            onChange={setTagFilter}
+          />
+        </div>
+
+        <DateTimePicker
+          label="Start Date"
+          value={startDate}
+          onChange={setStartDate}
+        />
+
+        <DateTimePicker
+          label="End Date"
+          value={endDate}
+          onChange={setEndDate}
+          isEndOfDay={true}
+        />
+      </div>
+
+      {/* Events list with time groups */}
+      {filteredEvents.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 px-4">
+          <div className="text-text-muted text-center space-y-2">
+            <p className="text-lg font-medium">No changes found.</p>
+            <p className="text-xs mt-4">Try adjusting your filters or time range to see more results.</p>
+          </div>
+        </div>
+      ) : (
+        groupedEvents.map((group, groupIndex) => (
+          <div key={groupIndex}>
+            {/* Time Separator */}
+            <div className="time-separator">
+              <span className="time-label">{group.label}</span>
+            </div>
+
+            {/* Events in this time group */}
+            {group.events.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                tags={getTagsForProject(event.project)}
+              />
+            ))}
+          </div>
+        ))
+      )}
+
+      {loading && events.length > 0 && (
+        <p style={{ textAlign: 'center', padding: '20px', color: '#808080' }}>
+          Loading more events...
+        </p>
+      )}
+    </div>
+  );
+}

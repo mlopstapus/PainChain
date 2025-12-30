@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { GitHubPoller } from './github-poller';
+import { registerMetadata } from './register-metadata';
 
 // Load environment variables
 dotenv.config();
@@ -14,6 +15,11 @@ async function main() {
   console.log();
   console.log(`Backend API: ${BACKEND_API_URL}`);
   console.log(`Polling interval: ${POLLING_INTERVAL}s`);
+  console.log();
+
+  // Register connector metadata with backend
+  console.log('Registering connector metadata...');
+  await registerMetadata(BACKEND_API_URL);
   console.log();
 
   // Start poller
