@@ -74,8 +74,8 @@ export class GitHubPoller {
       const repositories = integration.config.repositories || [];
 
       for (const repo of repositories) {
-        await this.pollRepository(octokit, repo, integration.tenantId);
-        await this.pollWorkflowRuns(octokit, repo, integration.tenantId);
+        await this.pollRepository(octokit, repo, integration.tenantId, integration.id);
+        await this.pollWorkflowRuns(octokit, repo, integration.tenantId, integration.id);
       }
 
       // Update last sync time
@@ -94,7 +94,8 @@ export class GitHubPoller {
   private async pollRepository(
     octokit: Octokit,
     repo: RepositoryConfig,
-    tenantId: string | null
+    tenantId: string | null,
+    integrationId: string
   ): Promise<void> {
     const repoKey = `${repo.owner}/${repo.repo}`;
 
@@ -128,7 +129,10 @@ export class GitHubPoller {
         if (painchainEvent) {
           // Post to backend
           await this.backendClient.postEvent(
-            painchainEvent,
+            {
+              ...painchainEvent,
+              integrationId,
+            },
             tenantId || undefined
           );
           newEventCount++;
@@ -156,7 +160,8 @@ export class GitHubPoller {
   private async pollWorkflowRuns(
     octokit: Octokit,
     repo: RepositoryConfig,
-    tenantId: string | null
+    tenantId: string | null,
+    integrationId: string
   ): Promise<void> {
     const repoKey = `${repo.owner}/${repo.repo}`;
 
@@ -189,7 +194,10 @@ export class GitHubPoller {
 
         // Post to backend
         await this.backendClient.postEvent(
-          painchainEvent,
+          {
+            ...painchainEvent,
+            integrationId,
+          },
           tenantId || undefined
         );
         newWorkflowCount++;

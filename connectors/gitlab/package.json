@@ -1,0 +1,30 @@
+{
+  "name": "@painchain/gitlab-connector",
+  "version": "1.0.0",
+  "description": "PainChain GitLab connector - polls GitLab events and forwards to PainChain backend",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "keywords": [
+    "painchain",
+    "gitlab",
+    "connector"
+  ],
+  "author": "PainChain",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@gitbeaker/rest": "^43.0.0",
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "js-yaml": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.0.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
