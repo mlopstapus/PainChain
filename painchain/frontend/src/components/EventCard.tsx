@@ -8,10 +8,10 @@ interface EventCardProps {
 }
 
 const CONNECTOR_LOGOS: Record<string, string> = {
-  github: '/logos/github.png',
-  gitlab: '/logos/gitlab.png',
-  kubernetes: '/logos/kubernetes.png',
-  painchain: '/logos/painchain.png',
+  github: '/api/integrations/types/github/logo',
+  gitlab: '/api/integrations/types/gitlab/logo',
+  kubernetes: '/api/integrations/types/kubernetes/logo',
+  painchain: '/logos/painchain.png', // PainChain logo stays in public folder
 };
 
 export function EventCard({ event, tags = [] }: EventCardProps) {

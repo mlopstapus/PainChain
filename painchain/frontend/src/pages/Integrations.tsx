@@ -78,12 +78,25 @@ export function Integrations() {
   const [newTagInput, setNewTagInput] = useState('');
   const [deleteTeamConfirm, setDeleteTeamConfirm] = useState<string | null>(null);
 
+  // Integration tag input state
+  const [integrationTagInput, setIntegrationTagInput] = useState('');
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const config = JSON.parse(createForm.config);
       // Extract name from config
       const name = config.name || 'Unnamed Integration';
+
+      // Validate required fields per contract
+      if (!config.name || typeof config.name !== 'string') {
+        alert('Integration name is required');
+        return;
+      }
+      if (!Array.isArray(config.tags)) {
+        alert('Tags must be a valid JSON array (e.g., ["tag1", "tag2"])');
+        return;
+      }
 
       await createIntegration({
         type: createForm.type,
@@ -109,6 +122,16 @@ export function Integrations() {
       // Extract name from config if it exists there
       const name = editingIntegration.config.name || editingIntegration.name;
 
+      // Validate required fields per contract
+      if (!editingIntegration.config.name || typeof editingIntegration.config.name !== 'string') {
+        alert('Integration name is required');
+        return;
+      }
+      if (!Array.isArray(editingIntegration.config.tags)) {
+        alert('Tags must be a valid JSON array (e.g., ["tag1", "tag2"])');
+        return;
+      }
+
       await updateIntegration(editingIntegration.id, {
         name: name,
         config: editingIntegration.config,
@@ -123,6 +146,7 @@ export function Integrations() {
     try {
       await deleteIntegration(id);
       setDeleteConfirm(null);
+      closePanel();
     } catch (err) {
       alert(`Failed to delete integration: ${err}`);
     }
@@ -159,14 +183,10 @@ export function Integrations() {
       // Search in connector type
       if (integration.type?.toLowerCase().includes(query)) return true;
 
-      // Search in tags from repositories
-      if (integration.config?.repositories && Array.isArray(integration.config.repositories)) {
-        for (const repo of integration.config.repositories) {
-          if (repo.tags && Array.isArray(repo.tags)) {
-            if (repo.tags.some((tag: string) => tag.toLowerCase().includes(query))) {
-              return true;
-            }
-          }
+      // Search in tags (normalized to top-level tags field)
+      if (integration.config?.tags && Array.isArray(integration.config.tags)) {
+        if (integration.config.tags.some((tag: string) => tag.toLowerCase().includes(query))) {
+          return true;
         }
       }
 
@@ -201,6 +221,7 @@ export function Integrations() {
       name: '',
       config: '{}',
     });
+    setIntegrationTagInput('');
   };
 
   // Team handlers
@@ -268,7 +289,7 @@ export function Integrations() {
     }
   };
 
-  const handleTagInputKeyPress = (e: React.KeyboardEvent) => {
+  const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       addTag();
@@ -280,6 +301,28 @@ export function Integrations() {
       ...teamForm,
       tags: teamForm.tags.filter((_, i) => i !== index),
     });
+  };
+
+  // Integration tag handlers
+  const addIntegrationTag = (currentTags: string[]) => {
+    if (integrationTagInput.trim() && !currentTags.includes(integrationTagInput.trim())) {
+      const newTags = [...currentTags, integrationTagInput.trim()];
+      setIntegrationTagInput('');
+      return newTags;
+    }
+    return currentTags;
+  };
+
+  const removeIntegrationTag = (currentTags: string[], index: number) => {
+    return currentTags.filter((_, i) => i !== index);
+  };
+
+  const handleIntegrationTagKeyDown = (e: React.KeyboardEvent, currentTags: string[], handleConfigChange: (key: string, value: any) => void) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const newTags = addIntegrationTag(currentTags);
+      handleConfigChange('tags', newTags);
+    }
   };
 
   return (
@@ -372,11 +415,11 @@ export function Integrations() {
                         const connectorType = typesMap[type];
                         const logo = connectorType?.logo;
 
-                        // If logo is a file path (contains .), render as image
-                        if (logo && logo.includes('.')) {
+                        // If logo exists, render from API endpoint
+                        if (logo) {
                           return (
                             <img
-                              src={`/logos/${logo}`}
+                              src={`/api/integrations/types/${type}/logo`}
                               alt={type}
                               className="connector-logo"
                             />
@@ -401,6 +444,9 @@ export function Integrations() {
                               <h3>{integration.config?.name || integration.name || 'Unnamed Integration'}</h3>
                               <p className="integration-card-type">
                                 {type.charAt(0).toUpperCase() + type.slice(1)} Connector
+                              </p>
+                              <p className="integration-card-meta" style={{ fontSize: '0.75em', color: '#808080', marginTop: '4px' }}>
+                                ID: {integration.id}
                               </p>
                             </div>
                             <div className="integration-card-status">
@@ -509,6 +555,87 @@ export function Integrations() {
                 </svg>
               </button>
             </div>
+            {editingIntegration && (
+              <div style={{
+                padding: '16px 24px',
+                borderBottom: '1px solid #2a3142',
+                backgroundColor: '#1a1f2e'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px'
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{
+                      fontSize: '0.7em',
+                      color: '#808080',
+                      margin: '0 0 4px 0',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      fontWeight: 600
+                    }}>
+                      Integration ID
+                    </p>
+                    <p style={{
+                      fontSize: '0.9em',
+                      color: '#00E8A0',
+                      fontFamily: 'monospace',
+                      margin: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {editingIntegration.id}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(editingIntegration.id);
+                      // Show a brief success indicator
+                      const btn = document.activeElement as HTMLButtonElement;
+                      const originalText = btn.innerHTML;
+                      btn.innerHTML = '✓';
+                      btn.style.color = '#00E8A0';
+                      setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.style.color = '';
+                      }, 1000);
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      backgroundColor: '#2a3142',
+                      border: '1px solid #3a4152',
+                      borderRadius: '4px',
+                      color: '#e1e4e8',
+                      cursor: 'pointer',
+                      fontSize: '0.85em',
+                      fontWeight: 500,
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#3a4152';
+                      e.currentTarget.style.borderColor = '#4a5162';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#2a3142';
+                      e.currentTarget.style.borderColor = '#3a4152';
+                    }}
+                  >
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="slide-panel-content">
               <form onSubmit={editingIntegration ? handleUpdate : handleCreate}>
                 <div className="form-group">
@@ -596,6 +723,78 @@ export function Integrations() {
                       return connectorSchema.fields.map((field: ConfigField) => {
                         const value = config[field.key];
 
+                        // Special UI for tags field
+                        if (field.key === 'tags') {
+                          const tags = Array.isArray(value) ? value : [];
+                          return (
+                            <div key={field.key} className="config-field">
+                              <label className="config-label">
+                                {field.label}
+                                {field.required && <span style={{ color: '#f85149' }}> *</span>}
+                              </label>
+                              {tags.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                                  {tags.map((tag: string, index: number) => (
+                                    <span
+                                      key={index}
+                                      className="label-tag"
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                      }}
+                                      onClick={() => {
+                                        const newTags = removeIntegrationTag(tags, index);
+                                        handleConfigChange('tags', newTags);
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.opacity = '0.7';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.opacity = '1';
+                                      }}
+                                    >
+                                      {tag}
+                                      <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ opacity: 0.6 }}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                      </svg>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <input
+                                  type="text"
+                                  value={integrationTagInput}
+                                  onChange={(e) => setIntegrationTagInput(e.target.value)}
+                                  onKeyDown={(e) => handleIntegrationTagKeyDown(e, tags, handleConfigChange)}
+                                  placeholder="Enter tag name..."
+                                  style={{ flex: 1 }}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn-primary"
+                                  onClick={() => {
+                                    const newTags = addIntegrationTag(tags);
+                                    handleConfigChange('tags', newTags);
+                                  }}
+                                  disabled={!integrationTagInput.trim()}
+                                  style={{ padding: '0 16px', minWidth: '44px' }}
+                                >
+                                  +
+                                </button>
+                              </div>
+                              {field.help && (
+                                <p style={{ fontSize: '0.75em', color: '#808080', marginTop: '4px', marginBottom: '0' }}>
+                                  {field.help}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        }
+
                         return (
                           <div key={field.key} className="config-field">
                             <label className="config-label">
@@ -610,7 +809,20 @@ export function Integrations() {
                                     const parsed = JSON.parse(e.target.value);
                                     handleConfigChange(field.key, parsed);
                                   } catch {
+                                    // Keep as string until valid JSON is entered
+                                    // This allows the user to type without errors
                                     handleConfigChange(field.key, e.target.value);
+                                  }
+                                }}
+                                onBlur={(e) => {
+                                  // On blur, validate that the JSON is correct
+                                  try {
+                                    const parsed = JSON.parse(e.target.value);
+                                    handleConfigChange(field.key, parsed);
+                                  } catch (err) {
+                                    alert(`Invalid JSON in ${field.label}: ${err}`);
+                                    // Reset to empty array/object
+                                    handleConfigChange(field.key, field.key === 'repositories' ? [] : {});
                                   }
                                 }}
                                 placeholder={field.placeholder}
@@ -732,18 +944,24 @@ export function Integrations() {
                       {teamForm.tags.map((tag, index) => (
                         <span
                           key={index}
-                          className="status-badge active"
+                          className="label-tag"
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '6px',
-                            padding: '4px 10px',
                             cursor: 'pointer',
+                            transition: 'all 0.2s',
                           }}
                           onClick={() => removeTag(index)}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.opacity = '0.7';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.opacity = '1';
+                          }}
                         >
                           {tag}
-                          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ opacity: 0.6 }}>
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </span>
@@ -755,7 +973,7 @@ export function Integrations() {
                       type="text"
                       value={newTagInput}
                       onChange={(e) => setNewTagInput(e.target.value)}
-                      onKeyPress={handleTagInputKeyPress}
+                      onKeyDown={handleTagInputKeyDown}
                       placeholder="Enter tag name..."
                       style={{ flex: 1 }}
                     />

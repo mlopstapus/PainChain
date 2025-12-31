@@ -17,6 +17,7 @@ interface CreateEventDto {
   connector: string;
   project: string;
   timestamp: string | Date;
+  integrationId?: string;  // Which integration created this event
   data: Record<string, any>;
 }
 
@@ -37,6 +38,7 @@ export class EventsController {
       timestamp: new Date(createDto.timestamp),
       data: createDto.data as Prisma.JsonValue,
       ...(tenantId ? { tenant: { connect: { id: tenantId } } } : {}),
+      ...(createDto.integrationId ? { integration: { connect: { id: createDto.integrationId } } } : {}),
     });
 
     return {

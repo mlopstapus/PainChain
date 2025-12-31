@@ -42,6 +42,8 @@ class APIClient {
     project?: string;
     tags?: string[];
     limit?: number;
+    startDate?: Date;
+    endDate?: Date;
   }) {
     const queryParams = new URLSearchParams();
     if (params?.connector) queryParams.set('connector', params.connector);
@@ -50,6 +52,8 @@ class APIClient {
       params.tags.forEach(tag => queryParams.append('tag', tag));
     }
     if (params?.limit) queryParams.set('limit', params.limit.toString());
+    if (params?.startDate) queryParams.set('startDate', params.startDate.toISOString());
+    if (params?.endDate) queryParams.set('endDate', params.endDate.toISOString());
 
     const query = queryParams.toString();
     return this.request(`/timeline${query ? `?${query}` : ''}`);

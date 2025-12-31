@@ -11,6 +11,8 @@ interface TimelineBin {
 interface TimelineProps {
   events: Event[]
   onTimeRangeChange?: (start: string, end: string) => void
+  startDate?: string
+  endDate?: string
 }
 
 const CONNECTOR_COLORS: Record<string, string> = {
@@ -32,7 +34,7 @@ const getConnectorDisplayName = (connector: string): string => {
     connector.charAt(0).toUpperCase() + connector.slice(1)
 }
 
-export default function Timeline({ events, onTimeRangeChange }: TimelineProps) {
+export default function Timeline({ events, onTimeRangeChange, startDate, endDate }: TimelineProps) {
   const [timelineData, setTimelineData] = useState<TimelineBin[]>([])
   const [stats, setStats] = useState<Record<string, number>>({})
   const [selectionStart, setSelectionStart] = useState<number | null>(null)
@@ -40,47 +42,63 @@ export default function Timeline({ events, onTimeRangeChange }: TimelineProps) {
   const [showLegend, setShowLegend] = useState(true)
 
   useEffect(() => {
-    // Always create exactly 60 buckets
-    const NUM_BUCKETS = 60
+    const startTime = performance.now()
     const connectorStats: Record<string, number> = {}
+
+    // Find time range - use provided dates if available, otherwise derive from events
+    let minTime: number
+    let maxTime: number
 
     if (events.length === 0) {
       // Create empty buckets for the last hour
       const now = new Date()
       const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
-      const bucketSize = (60 * 60 * 1000) / NUM_BUCKETS
-
-      const buckets: TimelineBin[] = []
-      for (let i = 0; i < NUM_BUCKETS; i++) {
-        const bucketTime = new Date(oneHourAgo.getTime() + (i * bucketSize))
-        buckets.push({
-          time: bucketTime.toISOString(),
-          total: 0
-        })
-      }
-
-      setTimelineData(buckets)
-      setStats({})
-      return
+      minTime = oneHourAgo.getTime()
+      maxTime = now.getTime()
+    } else if (startDate && endDate) {
+      minTime = new Date(startDate).getTime()
+      maxTime = new Date(endDate).getTime()
+    } else {
+      const timestamps = events.map(e => new Date(e.timestamp).getTime())
+      minTime = Math.min(...timestamps)
+      maxTime = Math.max(...timestamps)
     }
 
-    // Find time range
-    const timestamps = events.map(e => new Date(e.timestamp).getTime())
-    const minTime = Math.min(...timestamps)
-    const maxTime = Math.max(...timestamps)
-
-    // Calculate bucket size in milliseconds
+    // Calculate time range
     let timeRange = maxTime - minTime
 
     // Handle edge case: all events at same time or very close together
-    // Create artificial time range of 1 hour
     if (timeRange === 0) {
       timeRange = 60 * 60 * 1000 // 1 hour in milliseconds
     }
 
-    const bucketSize = timeRange / NUM_BUCKETS
+    // Dynamically determine bucket size and count based on time range
+    let bucketSize: number
+    let NUM_BUCKETS: number
 
-    // Create 60 empty buckets
+    const oneHour = 60 * 60 * 1000
+    const oneDay = 24 * oneHour
+    const oneWeek = 7 * oneDay
+
+    if (timeRange <= oneHour) {
+      // For ranges up to 1 hour: 1 minute buckets (60 buckets)
+      bucketSize = oneHour / 60
+      NUM_BUCKETS = 60
+    } else if (timeRange <= oneDay) {
+      // For ranges up to 1 day: 30 minute buckets (48 buckets)
+      bucketSize = 30 * 60 * 1000
+      NUM_BUCKETS = Math.ceil(timeRange / bucketSize)
+    } else if (timeRange <= oneWeek) {
+      // For ranges up to 1 week: 2 hour buckets (84 buckets for 7 days)
+      bucketSize = 2 * oneHour
+      NUM_BUCKETS = Math.ceil(timeRange / bucketSize)
+    } else {
+      // For ranges longer than 1 week: 6 hour buckets
+      bucketSize = 6 * oneHour
+      NUM_BUCKETS = Math.ceil(timeRange / bucketSize)
+    }
+
+    // Create empty buckets
     const buckets: TimelineBin[] = []
     for (let i = 0; i < NUM_BUCKETS; i++) {
       const bucketTime = new Date(minTime + (i * bucketSize))
@@ -93,17 +111,10 @@ export default function Timeline({ events, onTimeRangeChange }: TimelineProps) {
     // Assign events to buckets
     events.forEach(event => {
       const eventTime = new Date(event.timestamp).getTime()
-      let bucketIndex: number
-
-      if (timeRange === 60 * 60 * 1000 && maxTime === minTime) {
-        // All events at same time, put in middle bucket
-        bucketIndex = Math.floor(NUM_BUCKETS / 2)
-      } else {
-        bucketIndex = Math.min(
-          Math.floor((eventTime - minTime) / bucketSize),
-          NUM_BUCKETS - 1
-        )
-      }
+      const bucketIndex = Math.min(
+        Math.floor((eventTime - minTime) / bucketSize),
+        NUM_BUCKETS - 1
+      )
 
       if (buckets[bucketIndex]) {
         buckets[bucketIndex].total++
@@ -112,9 +123,21 @@ export default function Timeline({ events, onTimeRangeChange }: TimelineProps) {
       connectorStats[event.connector] = (connectorStats[event.connector] || 0) + 1
     })
 
+    // Debug: log bucket stats and timing
+    const endTime = performance.now()
+    const totalInBuckets = buckets.reduce((sum, b) => sum + b.total, 0)
+    console.log('Timeline Processing:', {
+      duration: `${(endTime - startTime).toFixed(2)}ms`,
+      totalEvents: events.length,
+      totalInBuckets,
+      numBuckets: buckets.length,
+      bucketSize: bucketSize / (60 * 60 * 1000) + ' hours',
+      timeRange: (maxTime - minTime) / (24 * 60 * 60 * 1000) + ' days'
+    })
+
     setTimelineData(buckets)
     setStats(connectorStats)
-  }, [events])
+  }, [events, startDate, endDate])
 
   const formatXAxis = (timestamp: string) => {
     const date = new Date(timestamp)
@@ -254,9 +277,6 @@ export default function Timeline({ events, onTimeRangeChange }: TimelineProps) {
                     hour: '2-digit',
                     minute: '2-digit'
                   })}
-                </span>
-                <span className="timeline-info">
-                  60 buckets • Updates every 30s
                 </span>
               </>
             )}

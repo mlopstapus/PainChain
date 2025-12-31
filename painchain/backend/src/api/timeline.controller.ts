@@ -11,6 +11,8 @@ export class TimelineController {
     @Query('project') project?: string,
     @Query('tag') tag?: string | string[],
     @Query('limit') limit?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
     @Headers('x-tenant-id') tenantId?: string,
   ) {
     // Convert single tag string to array
@@ -22,6 +24,8 @@ export class TimelineController {
       project,
       tags,
       limit: limit ? parseInt(limit, 10) : undefined,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
     });
   }
 }

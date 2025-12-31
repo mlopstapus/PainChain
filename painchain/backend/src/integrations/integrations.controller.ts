@@ -13,6 +13,28 @@ import {
 import { IntegrationsService } from './integrations.service';
 import { Prisma } from '@prisma/client';
 
+/**
+ * Validates integration config against the standard contract
+ * All connectors MUST provide:
+ * - name (string): Integration name
+ * - tags (string[]): Tags for filtering (can be empty)
+ *
+ * Throws error if contract is violated
+ */
+function validateConfig(config: any): void {
+  if (!config) {
+    throw new Error('Config is required');
+  }
+
+  if (!config.name || typeof config.name !== 'string') {
+    throw new Error('Config must have a "name" field (string)');
+  }
+
+  if (!Array.isArray(config.tags)) {
+    throw new Error('Config must have a "tags" field (array)');
+  }
+}
+
 @Controller('integrations')
 export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) {}
@@ -23,6 +45,9 @@ export class IntegrationsController {
     @Body() createDto: Prisma.IntegrationCreateInput,
     @Headers('x-tenant-id') tenantId?: string,
   ) {
+    // Validate config matches the standard contract
+    validateConfig(createDto.config);
+
     const integration = await this.integrationsService.create({
       ...createDto,
       ...(tenantId ? { tenant: { connect: { id: tenantId } } } : {}),
@@ -54,6 +79,11 @@ export class IntegrationsController {
     @Body() updateDto: Prisma.IntegrationUpdateInput,
     @Headers('x-tenant-id') tenantId?: string,
   ) {
+    // Validate config if provided
+    if (updateDto.config) {
+      validateConfig(updateDto.config);
+    }
+
     return this.integrationsService.update(id, updateDto, tenantId);
   }
 

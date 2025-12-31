@@ -8,6 +8,7 @@ export interface Event {
   timestamp: string;
   data: Record<string, any>;
   createdAt: string;
+  integrationId?: string | null;  // Which integration created this event
 }
 
 export interface Integration {

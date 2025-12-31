@@ -6,7 +6,10 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  Res,
+  NotFoundException,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { IntegrationTypesService } from './integration-types.service';
 import { Prisma } from '@prisma/client';
 
@@ -30,6 +33,33 @@ export class IntegrationTypesController {
       displayName: connectorType.displayName,
       registered: true,
     };
+  }
+
+  /**
+   * Get logo for a specific connector type
+   * GET /api/integrations/types/:type/logo
+   */
+  @Get(':type/logo')
+  async getLogo(@Param('type') type: string, @Res() res: Response) {
+    const connectorType = await this.integrationTypesService.findOne(type);
+
+    if (!connectorType || !connectorType.logo) {
+      throw new NotFoundException('Logo not found');
+    }
+
+    // Parse base64 data (format: "data:image/png;base64,...")
+    const matches = connectorType.logo.match(/^data:([^;]+);base64,(.+)$/);
+    if (!matches) {
+      throw new NotFoundException('Invalid logo format');
+    }
+
+    const mimeType = matches[1];
+    const base64Data = matches[2];
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    res.send(buffer);
   }
 
   /**

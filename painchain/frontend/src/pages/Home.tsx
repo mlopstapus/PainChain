@@ -48,22 +48,15 @@ export function Home() {
     connector: sourceFilter || undefined,
     tags: expandedTags.length > 0 ? expandedTags : undefined,
     limit: 100,
+    startDate: new Date(startDate),
+    endDate: new Date(endDate),
   });
 
-  // Extract all unique tags from integration repository configurations and teams
+  // Extract all unique tags from integration configurations and teams
   const availableTags = useMemo(() => {
-    // Get tags from integrations
+    // Get tags from integrations (normalized to top-level tags field)
     const integrationTags = integrations.flatMap(integration => {
-      const repos = integration.config?.repositories || [];
-      if (Array.isArray(repos)) {
-        return repos.flatMap((repo: any) => {
-          if (repo.tags && Array.isArray(repo.tags)) {
-            return repo.tags;
-          }
-          return [];
-        });
-      }
-      return [];
+      return integration.config?.tags || [];
     });
 
     // Get teams with "Team: " prefix
@@ -81,25 +74,20 @@ export function Home() {
     });
   }, [integrations, teams]);
 
-  // Helper to get tags for a specific project
-  const getTagsForProject = (projectName: string): string[] => {
-    const tags = new Set<string>();
-    integrations.forEach(integration => {
-      const repos = integration.config?.repositories || [];
-      if (Array.isArray(repos)) {
-        repos.forEach((repo: any) => {
-          // Construct the full repository name as owner/repo
-          const fullRepoName = repo.owner && repo.repo
-            ? `${repo.owner}/${repo.repo}`
-            : repo.name || repo.repository;
+  // Helper to get tags for an event based on its integration
+  const getTagsForEvent = (event: Event): string[] => {
+    if (!event.integrationId) {
+      return [];
+    }
 
-          if (fullRepoName === projectName && repo.tags && Array.isArray(repo.tags)) {
-            repo.tags.forEach((tag: string) => tags.add(tag));
-          }
-        });
-      }
-    });
-    return Array.from(tags);
+    // Find the integration that created this event
+    const integration = integrations.find(i => i.id === event.integrationId);
+    if (!integration) {
+      return [];
+    }
+
+    // Return the integration's tags
+    return integration.config?.tags || [];
   };
 
   // Auto-refresh every 30 seconds
@@ -160,13 +148,8 @@ export function Home() {
     setEndDate(end);
   };
 
-  // Filter events by date range
-  const filteredEvents = events.filter(event => {
-    const eventTime = new Date(event.timestamp).getTime();
-    const start = new Date(startDate).getTime();
-    const end = new Date(endDate).getTime();
-    return eventTime >= start && eventTime <= end;
-  });
+  // Events are already filtered by date range from the API
+  const filteredEvents = events;
 
   if (loading && events.length === 0) {
     return (
@@ -189,7 +172,12 @@ export function Home() {
   return (
     <div className="content">
       {/* Timeline Chart */}
-      <Timeline events={filteredEvents} onTimeRangeChange={handleTimeRangeChange} />
+      <Timeline
+        events={filteredEvents}
+        onTimeRangeChange={handleTimeRangeChange}
+        startDate={startDate}
+        endDate={endDate}
+      />
 
       {/* Filters */}
       <div className="filters">
@@ -250,7 +238,7 @@ export function Home() {
               <EventCard
                 key={event.id}
                 event={event}
-                tags={getTagsForProject(event.project)}
+                tags={getTagsForEvent(event)}
               />
             ))}
           </div>

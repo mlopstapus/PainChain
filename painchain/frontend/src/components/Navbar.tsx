@@ -5,7 +5,7 @@ export function Navbar() {
     <header className="header">
       <div className="header-left">
         <img
-          src="/logos/painchain_transparent.png"
+          src="/logos/painchain.png"
           alt="PainChain Logo"
           className="logo"
           onError={(e) => {
@@ -25,7 +25,7 @@ export function Navbar() {
           className="nav-link"
         >
           <img
-            src="/logos/github.png"
+            src="/api/integrations/types/github/logo"
             alt="GitHub"
             className="github-icon"
             onError={(e) => {

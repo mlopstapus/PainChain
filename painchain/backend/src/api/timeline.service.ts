@@ -7,6 +7,8 @@ interface TimelineFilters {
   project?: string;
   tags?: string[];
   limit?: number;
+  startDate?: Date;
+  endDate?: Date;
 }
 
 @Injectable()
@@ -14,47 +16,43 @@ export class TimelineService {
   constructor(private prisma: PrismaService) {}
 
   async getTimeline(filters: TimelineFilters) {
-    // If tags are specified, find repositories from integration configs
-    let projectNames: string[] | undefined;
+    // If tags are specified, find integrations with matching tags
+    let integrationIds: string[] | undefined;
     if (filters.tags && filters.tags.length > 0) {
-      // Get all integrations
+      // Get integrations that have any of the specified tags
       const integrations = await this.prisma.integration.findMany({
         where: filters.connector ? { type: filters.connector } : {},
       });
 
-      // Extract repository names that have any of the specified tags
-      const repoSet = new Set<string>();
-      for (const integration of integrations) {
+      // Filter integrations that have matching tags
+      const matchingIntegrations = integrations.filter(integration => {
         const config = integration.config as any;
-        if (config?.repositories && Array.isArray(config.repositories)) {
-          for (const repo of config.repositories) {
-            if (repo.tags && Array.isArray(repo.tags)) {
-              // Check if repo has any of the specified tags
-              const hasMatchingTag = filters.tags.some(tag => repo.tags.includes(tag));
-              if (hasMatchingTag) {
-                // Construct full repository name as owner/repo
-                const fullRepoName = repo.owner && repo.repo
-                  ? `${repo.owner}/${repo.repo}`
-                  : repo.name || repo.repository;
-
-                if (fullRepoName) {
-                  repoSet.add(fullRepoName);
-                }
-              }
-            }
-          }
+        if (!config?.tags || !Array.isArray(config.tags)) {
+          return false;
         }
-      }
+        // Check if integration has any of the specified tags
+        return filters.tags.some(tag => config.tags.includes(tag));
+      });
 
-      projectNames = Array.from(repoSet);
+      integrationIds = matchingIntegrations.map(i => i.id);
 
-      // If no repositories match the tags, return empty results
-      if (projectNames.length === 0) {
+      // If no integrations match the tags, return empty results
+      if (integrationIds.length === 0) {
         return {
           events: [],
           total: 0,
         };
       }
+    }
+
+    // Calculate appropriate limit based on time range
+    let eventLimit = filters.limit || 50;
+    if (filters.startDate && filters.endDate) {
+      const timeRangeMs = filters.endDate.getTime() - filters.startDate.getTime();
+      const days = timeRangeMs / (24 * 60 * 60 * 1000);
+
+      // Scale limit with time range: ~50 events per day, capped at 2000
+      eventLimit = Math.min(2000, Math.ceil(days * 50));
     }
 
     const events = await this.prisma.event.findMany({
@@ -64,10 +62,18 @@ export class TimelineService {
           : {}),
         ...(filters.connector ? { connector: filters.connector } : {}),
         ...(filters.project ? { project: filters.project } : {}),
-        ...(projectNames ? { project: { in: projectNames } } : {}),
+        ...(integrationIds ? { integrationId: { in: integrationIds } } : {}),
+        ...(filters.startDate || filters.endDate
+          ? {
+              timestamp: {
+                ...(filters.startDate ? { gte: filters.startDate } : {}),
+                ...(filters.endDate ? { lte: filters.endDate } : {}),
+              },
+            }
+          : {}),
       },
       orderBy: { timestamp: 'desc' },
-      take: filters.limit || 50,
+      take: eventLimit,
     });
 
     return {

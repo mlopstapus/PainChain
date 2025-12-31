@@ -42,24 +42,30 @@ model Integration {
   lastSync      DateTime?
   registeredAt  DateTime @default(now())
 
+  events        Event[]  // Events created by this integration
+
   @@map("integrations")
 }
 
 model Event {
-  id          String   @id @default(cuid())
-  tenantId    String?  // null for free tier
-  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  tenantId      String?  // null for free tier
+  tenant        Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  title       String
-  connector   String   // "github", "gitlab", "kubernetes"
-  project     String   // "acme/backend-api", "prod-cluster/default"
-  timestamp   DateTime
-  data        Json     // Flexible JSON data
-  createdAt   DateTime @default(now())
+  integrationId String?       // Which integration created this event
+  integration   Integration?  @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  title         String
+  connector     String   // "github", "gitlab", "kubernetes"
+  project       String   // "acme/backend-api", "prod-cluster/default"
+  timestamp     DateTime
+  data          Json     // Flexible JSON data
+  createdAt     DateTime @default(now())
 
   @@index([tenantId, connector, project, timestamp])
   @@index([tenantId, timestamp])
   @@index([timestamp])
+  @@index([integrationId])
   @@map("events")
 }
 

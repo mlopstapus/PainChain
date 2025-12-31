@@ -7,6 +7,8 @@ interface UseEventsParams {
   project?: string;
   tags?: string[];
   limit?: number;
+  startDate?: Date;
+  endDate?: Date;
   autoRefresh?: boolean;
   refreshInterval?: number; // in milliseconds
 }
@@ -26,12 +28,17 @@ export function useEvents(params?: UseEventsParams): UseEventsReturn {
   const fetchEvents = async () => {
     try {
       setError(null);
+      const startTime = performance.now();
       const response: any = await apiClient.getTimeline({
         connector: params?.connector,
         project: params?.project,
         tags: params?.tags,
         limit: params?.limit || 50,
+        startDate: params?.startDate,
+        endDate: params?.endDate,
       });
+      const endTime = performance.now();
+      console.log(`API Call: ${(endTime - startTime).toFixed(2)}ms - ${response.events?.length || 0} events`);
       setEvents(response.events || []);
     } catch (err) {
       setError(err as Error);
@@ -52,7 +59,7 @@ export function useEvents(params?: UseEventsParams): UseEventsReturn {
       );
       return () => clearInterval(interval);
     }
-  }, [params?.connector, params?.project, params?.tags, params?.limit]);
+  }, [params?.connector, params?.project, params?.tags, params?.limit, params?.startDate, params?.endDate]);
 
   return {
     events,
