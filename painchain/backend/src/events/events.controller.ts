@@ -18,6 +18,7 @@ interface CreateEventDto {
   project: string;
   timestamp: string | Date;
   integrationId?: string;  // Which integration created this event
+  externalId?: string;  // Source system ID for deduplication
   data: Record<string, any>;
 }
 
@@ -36,6 +37,7 @@ export class EventsController {
       connector: createDto.connector,
       project: createDto.project,
       timestamp: new Date(createDto.timestamp),
+      externalId: createDto.externalId,
       data: createDto.data as Prisma.JsonValue,
       ...(tenantId ? { tenant: { connect: { id: tenantId } } } : {}),
       ...(createDto.integrationId ? { integration: { connect: { id: createDto.integrationId } } } : {}),

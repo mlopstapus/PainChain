@@ -16,6 +16,7 @@ export function transformPushEvent(
     connector: 'github',
     project: `${owner}/${repo}`,
     timestamp: new Date(event.created_at),
+    externalId: `github-event-${event.id}`,
     data: {
       event_type: 'push',
       branch,
@@ -23,6 +24,7 @@ export function transformPushEvent(
       author: event.actor?.login || 'unknown',
       url: `https://github.com/${owner}/${repo}/compare/${event.payload?.before?.substring(0, 7)}...${event.payload?.head?.substring(0, 7)}`,
       commit_messages: commits.slice(0, 3).map((c: any) => c.message),
+      original_event_id: event.id,
     },
   };
 }
@@ -43,6 +45,7 @@ export function transformPullRequestEvent(
     connector: 'github',
     project: `${owner}/${repo}`,
     timestamp: new Date(event.created_at),
+    externalId: `github-event-${event.id}`,
     data: {
       event_type: 'pull_request',
       action,
@@ -53,6 +56,7 @@ export function transformPullRequestEvent(
       url: pr.html_url,
       base_branch: pr.base?.ref,
       head_branch: pr.head?.ref,
+      original_event_id: event.id,
     },
   };
 }
@@ -73,6 +77,7 @@ export function transformIssuesEvent(
     connector: 'github',
     project: `${owner}/${repo}`,
     timestamp: new Date(event.created_at),
+    externalId: `github-event-${event.id}`,
     data: {
       event_type: 'issues',
       action,
@@ -82,6 +87,7 @@ export function transformIssuesEvent(
       state: issue.state,
       url: issue.html_url,
       labels: issue.labels?.map((l: any) => l.name) || [],
+      original_event_id: event.id,
     },
   };
 }
@@ -102,6 +108,7 @@ export function transformReleaseEvent(
     connector: 'github',
     project: `${owner}/${repo}`,
     timestamp: new Date(event.created_at),
+    externalId: `github-event-${event.id}`,
     data: {
       event_type: 'release',
       action,
@@ -110,6 +117,7 @@ export function transformReleaseEvent(
       author: release.author?.login || 'unknown',
       url: release.html_url,
       prerelease: release.prerelease,
+      original_event_id: event.id,
     },
   };
 }
@@ -132,6 +140,7 @@ export function transformWorkflowRun(
     connector: 'github',
     project: `${owner}/${repo}`,
     timestamp: new Date(run.updated_at || run.created_at),
+    externalId: `github-workflow-${run.id}`,
     data: {
       event_type: 'workflow',
       workflow_name: run.name,
@@ -144,6 +153,7 @@ export function transformWorkflowRun(
       event: run.event,
       duration_seconds: Math.round(duration),
       url: run.html_url,
+      original_run_id: run.id,
     },
   };
 }

@@ -55,6 +55,8 @@ model Event {
   integrationId String?       // Which integration created this event
   integration   Integration?  @relation(fields: [integrationId], references: [id], onDelete: SetNull)
 
+  externalId    String?  // Source system ID for deduplication (e.g., github-event-123)
+
   title         String
   connector     String   // "github", "gitlab", "kubernetes"
   project       String   // "acme/backend-api", "prod-cluster/default"
@@ -62,10 +64,12 @@ model Event {
   data          Json     // Flexible JSON data
   createdAt     DateTime @default(now())
 
+  @@unique([integrationId, externalId], name: "integration_external_id")
   @@index([tenantId, connector, project, timestamp])
   @@index([tenantId, timestamp])
   @@index([timestamp])
   @@index([integrationId])
+  @@index([externalId])
   @@map("events")
 }
 

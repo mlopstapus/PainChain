@@ -15,6 +15,7 @@ export function transformPushEvent(
     connector: 'gitlab',
     project,
     timestamp: new Date(event.created_at),
+    externalId: `gitlab-event-${event.id}`,
     data: {
       event_type: 'push',
       branch,
@@ -22,6 +23,7 @@ export function transformPushEvent(
       author: event.author?.username || 'unknown',
       url: `${event.project_id}`, // GitLab event URLs vary
       commit_sha: event.push_data?.commit_to,
+      original_event_id: event.id,
     },
   };
 }
@@ -41,6 +43,7 @@ export function transformMergeRequestEvent(
     connector: 'gitlab',
     project,
     timestamp: new Date(event.created_at),
+    externalId: `gitlab-event-${event.id}`,
     data: {
       event_type: 'merge_request',
       action,
@@ -51,6 +54,7 @@ export function transformMergeRequestEvent(
       url: mr.web_url,
       source_branch: mr.source_branch,
       target_branch: mr.target_branch,
+      original_event_id: event.id,
     },
   };
 }
@@ -70,6 +74,7 @@ export function transformIssueEvent(
     connector: 'gitlab',
     project,
     timestamp: new Date(event.created_at),
+    externalId: `gitlab-event-${event.id}`,
     data: {
       event_type: 'issue',
       action,
@@ -79,6 +84,7 @@ export function transformIssueEvent(
       state: issue.state,
       url: issue.web_url,
       labels: issue.labels?.map((l: any) => l.name) || [],
+      original_event_id: event.id,
     },
   };
 }
@@ -97,6 +103,7 @@ export function transformPipelineEvent(
     connector: 'gitlab',
     project,
     timestamp: new Date(pipeline.updated_at || pipeline.created_at),
+    externalId: `gitlab-pipeline-${pipeline.id}`,
     data: {
       event_type: 'pipeline',
       pipeline_id: pipeline.id,
@@ -106,6 +113,7 @@ export function transformPipelineEvent(
       author: pipeline.user?.username || 'unknown',
       duration_seconds: duration,
       url: pipeline.web_url,
+      original_pipeline_id: pipeline.id,
     },
   };
 }

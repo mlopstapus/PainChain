@@ -3,22 +3,12 @@ import { BackendClient } from './backend-client';
 import { Integration, RepositoryConfig } from './types';
 import { transformGitHubEvent, transformWorkflowRun } from './event-transformer';
 
-interface PollerState {
-  lastEventIds: Map<string, Set<string>>; // repo -> Set of event IDs
-  lastWorkflowRunIds: Map<string, Set<number>>; // repo -> Set of workflow run IDs
-}
-
 export class GitHubPoller {
   private backendClient: BackendClient;
-  private state: PollerState;
   private pollingInterval: number;
 
   constructor(backendApiUrl: string, pollingInterval: number = 60) {
     this.backendClient = new BackendClient(backendApiUrl);
-    this.state = {
-      lastEventIds: new Map(),
-      lastWorkflowRunIds: new Map(),
-    };
     this.pollingInterval = pollingInterval * 1000; // Convert to ms
   }
 
@@ -109,25 +99,14 @@ export class GitHubPoller {
         per_page: 30,
       });
 
-      // Get previously seen event IDs
-      const seenIds = this.state.lastEventIds.get(repoKey) || new Set();
-      const newEventIds = new Set<string>();
-
-      let newEventCount = 0;
+      let eventCount = 0;
 
       for (const event of events) {
-        newEventIds.add(event.id!);
-
-        // Skip if we've already processed this event
-        if (seenIds.has(event.id!)) {
-          continue;
-        }
-
         // Transform GitHub event to PainChain format
         const painchainEvent = transformGitHubEvent(event, repo.owner, repo.repo);
 
         if (painchainEvent) {
-          // Post to backend
+          // Post to backend (backend handles deduplication)
           await this.backendClient.postEvent(
             {
               ...painchainEvent,
@@ -135,14 +114,11 @@ export class GitHubPoller {
             },
             tenantId || undefined
           );
-          newEventCount++;
+          eventCount++;
         }
       }
 
-      // Update state
-      this.state.lastEventIds.set(repoKey, newEventIds);
-
-      console.log(`  ✓ ${newEventCount} new event(s) processed`);
+      console.log(`  ✓ ${eventCount} event(s) sent (backend deduplicates)`);
     } catch (error: any) {
       if (error.status === 404) {
         console.error(`  ❌ Repository not found: ${repoKey}`);
@@ -175,24 +151,13 @@ export class GitHubPoller {
         per_page: 20,
       });
 
-      // Get previously seen workflow run IDs
-      const seenRunIds = this.state.lastWorkflowRunIds.get(repoKey) || new Set();
-      const newRunIds = new Set<number>();
-
-      let newWorkflowCount = 0;
+      let workflowCount = 0;
 
       for (const run of data.workflow_runs) {
-        newRunIds.add(run.id);
-
-        // Skip if we've already processed this workflow run
-        if (seenRunIds.has(run.id)) {
-          continue;
-        }
-
         // Transform workflow run to PainChain format
         const painchainEvent = transformWorkflowRun(run, repo.owner, repo.repo);
 
-        // Post to backend
+        // Post to backend (backend handles deduplication)
         await this.backendClient.postEvent(
           {
             ...painchainEvent,
@@ -200,13 +165,10 @@ export class GitHubPoller {
           },
           tenantId || undefined
         );
-        newWorkflowCount++;
+        workflowCount++;
       }
 
-      // Update state
-      this.state.lastWorkflowRunIds.set(repoKey, newRunIds);
-
-      console.log(`  ✓ ${newWorkflowCount} new workflow run(s) processed`);
+      console.log(`  ✓ ${workflowCount} workflow run(s) sent (backend deduplicates)`);
     } catch (error: any) {
       if (error.status === 404) {
         console.error(`  ❌ Repository or workflows not found: ${repoKey}`);

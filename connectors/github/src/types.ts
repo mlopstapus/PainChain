@@ -32,5 +32,6 @@ export interface PainChainEvent {
   project: string;
   timestamp: Date;
   integrationId?: string;  // Which integration created this event
+  externalId?: string;  // Source system ID for deduplication
   data: Record<string, any>;
 }
