@@ -98,6 +98,7 @@ Create integrations through the PainChain backend API:
 
 #### Production Configuration (Token-Based)
 
+**With CA certificate (most secure):**
 ```bash
 curl -X POST http://localhost:8000/api/integrations \
   -H "Content-Type: application/json" \
@@ -108,26 +109,38 @@ curl -X POST http://localhost:8000/api/integrations \
       "clusters": [
         {
           "name": "prod-cluster",
-          "server": "https://kubernetes.default.svc",
+          "server": "https://kubernetes.example.com:6443",
           "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ii...",
-          "certificate": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...",
-          "skipTLSVerify": false
+          "certificate": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t..."
         }
-      ],
-      "namespaces": ["default", "production"],
-      "resources": {
-        "pods": true,
-        "deployments": true,
-        "services": true,
-        "statefulsets": true,
-        "daemonsets": true,
-        "events": true
-      }
+      ]
+    }
+  }'
+```
+
+**Without CA certificate (skip TLS verification - less secure):**
+```bash
+curl -X POST http://localhost:8000/api/integrations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "kubernetes",
+    "name": "Production Cluster",
+    "config": {
+      "clusters": [
+        {
+          "name": "prod-cluster",
+          "server": "https://kubernetes.example.com:6443",
+          "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ii...",
+          "skipTLSVerify": true
+        }
+      ]
     }
   }'
 ```
 
 #### Development Configuration (Kubeconfig Context)
+
+**Note:** Kubeconfig context mode only works when the connector runs directly on your host machine (not in Docker), as it needs access to your local `~/.kube/config` file.
 
 ```bash
 curl -X POST http://localhost:8000/api/integrations \
@@ -144,6 +157,93 @@ curl -X POST http://localhost:8000/api/integrations \
       ]
     }
   }'
+```
+
+#### k3d Local Development (Docker)
+
+For k3d clusters running in Docker, you need to use token-based auth and connect the connector to the k3d network:
+
+**Step 1: Create service account and RBAC**
+```bash
+# Create service account (if not exists)
+kubectl create serviceaccount painchain-connector -n default
+
+# Create ClusterRole with read permissions
+cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: painchain-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "events", "namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets", "daemonsets"]
+  verbs: ["get", "list", "watch"]
+EOF
+
+# Bind role to service account
+cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: painchain-reader-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: painchain-reader
+subjects:
+- kind: ServiceAccount
+  name: painchain-connector
+  namespace: default
+EOF
+```
+
+**Step 2: Get credentials**
+```bash
+# Get token
+TOKEN=$(kubectl create token painchain-connector -n default --duration=876000h)
+
+# Get CA certificate
+CA_CERT=$(kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+
+# Get k3d cluster name
+CLUSTER_NAME=$(kubectl config current-context | sed 's/k3d-//')
+```
+
+**Step 3: Connect connector to k3d network**
+```bash
+# Find your k3d network
+docker network ls | grep k3d
+
+# Connect the connector container to k3d network
+docker network connect k3d-${CLUSTER_NAME} painchain-kubernetes-connector
+
+# Restart connector
+docker restart painchain-kubernetes-connector
+```
+
+**Step 4: Create integration**
+```bash
+curl -X POST http://localhost:8000/api/integrations \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"type\": \"kubernetes\",
+    \"name\": \"Local k3d Development\",
+    \"config\": {
+      \"name\": \"Local k3d Development\",
+      \"tags\": [\"development\", \"k3d\"],
+      \"clusters\": [
+        {
+          \"name\": \"k3d-${CLUSTER_NAME}\",
+          \"server\": \"https://k3d-${CLUSTER_NAME}-server-0:6443\",
+          \"token\": \"$TOKEN\",
+          \"certificate\": \"$CA_CERT\"
+        }
+      ]
+    }
+  }"
 ```
 
 #### Multi-Cluster Configuration
@@ -245,15 +345,15 @@ curl -X POST http://localhost:8000/api/integrations \
 ### Cluster Configuration Options
 
 **Production (Token-Based Auth)**:
-- `name`: Cluster display name
-- `server`: Kubernetes API server URL
-- `token`: ServiceAccount bearer token
-- `certificate`: Base64-encoded CA certificate (optional)
-- `skipTLSVerify`: Skip TLS verification (default: false, not recommended)
+- `name`: Cluster display name (required)
+- `server`: Kubernetes API server URL (required)
+- `token`: ServiceAccount bearer token (required)
+- `certificate`: Base64-encoded CA certificate (optional - provide this OR set skipTLSVerify)
+- `skipTLSVerify`: Skip TLS verification (optional, default: false) - set to true if not providing certificate
 
 **Development (Kubeconfig Context)**:
-- `name`: Cluster display name
-- `context`: Name of kubeconfig context to use
+- `name`: Cluster display name (required)
+- `context`: Name of kubeconfig context to use (required)
 
 ### Namespace Filtering
 
@@ -496,6 +596,8 @@ docker run \
 
 ### Testing with Minikube
 
+**Note:** Only works when connector runs on host (not in Docker).
+
 ```bash
 # Start minikube
 minikube start
@@ -509,6 +611,19 @@ kubectl config current-context
 }
 ```
 
+### Testing with k3d
+
+```bash
+# Start k3d cluster
+k3d cluster create my-cluster
+
+# Follow the "k3d Local Development" setup above
+# Key points:
+# - Use token-based auth (not kubeconfig context)
+# - Connect connector to k3d Docker network
+# - Use internal Docker hostname for server URL
+```
+
 ## Troubleshooting
 
 ### "Connection test failed" errors
@@ -519,6 +634,8 @@ kubectl config current-context
 - Check that the token is valid and hasn't expired
 - Ensure the connector can reach the cluster (network/firewall)
 - For self-signed certificates, provide the CA certificate or use `skipTLSVerify: true` (not recommended for production)
+- **For k3d/kind clusters**: Ensure connector container is on the same Docker network as the cluster
+- **For local clusters**: Use internal Docker hostname (e.g., `k3d-cluster-server-0:6443`), not `localhost` or `0.0.0.0`
 
 ### "Forbidden" or permission errors
 
