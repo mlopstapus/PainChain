@@ -1,7 +1,7 @@
 # Frontend Authentication Implementation Plan
 
 **Status:** Ready for Implementation
-**Backend Status:** ✅ Complete and Tested
+**Backend Status:** ✅ Complete and Tested (including Multi-Tenancy)
 **Last Updated:** 2026-01-06
 
 ---
@@ -11,11 +11,14 @@
 This document outlines the complete frontend implementation plan for integrating with the PainChain authentication backend. The backend supports:
 
 - ✅ Basic authentication (email/password)
-- ✅ User registration
+- ✅ User registration (create org OR join via invitation)
 - ✅ OIDC authentication (Google, Okta, Azure, Auth0, etc.)
 - ✅ JWT-based sessions with revocation
 - ✅ Multi-tenant isolation
 - ✅ Session management
+- ✅ **Invitation system** (create, list, revoke invite links)
+- ✅ **Role-based access** (owner, admin, member, viewer)
+- ✅ **Domain-based auto-join** (OIDC users auto-join by email domain)
 
 ---
 
@@ -31,6 +34,9 @@ This document outlines the complete frontend implementation plan for integrating
 8. [User Experience](#user-experience)
 9. [Testing Strategy](#testing-strategy)
 10. [Security Considerations](#security-considerations)
+11. [**Multi-Tenant Registration Flows**](#multi-tenant-registration-flows)
+12. [**Teams Management Tab**](#teams-management-tab)
+13. [**On-Brand Design System**](#on-brand-design-system)
 
 ---
 
@@ -99,8 +105,8 @@ frontend/src/
 ├── features/
 │   └── auth/
 │       ├── components/
-│       │   ├── LoginPage.tsx              # Main login page
-│       │   ├── RegisterPage.tsx           # Registration form
+│       │   ├── LoginPage.tsx              # Main login page (on-brand)
+│       │   ├── RegisterPage.tsx           # Registration form (org or invite)
 │       │   ├── BasicAuthForm.tsx          # Email/password form
 │       │   ├── OIDCProviderCard.tsx       # OIDC provider button/card
 │       │   ├── OIDCCallback.tsx           # Handle OIDC callback
@@ -112,9 +118,10 @@ frontend/src/
 │       ├── hooks/
 │       │   ├── useAuth.ts                 # Main auth hook
 │       │   ├── useLogin.ts                # Login mutation
-│       │   ├── useRegister.ts             # Register mutation
+│       │   ├── useRegister.ts             # Register mutation (with invite support)
 │       │   ├── useLogout.ts               # Logout mutation
-│       │   └── useAuthMethods.ts          # Fetch available auth methods
+│       │   ├── useAuthMethods.ts          # Fetch available auth methods
+│       │   └── useInvitation.ts           # Validate invitation token
 │       │
 │       ├── context/
 │       │   ├── AuthContext.tsx            # Auth state context
@@ -131,6 +138,24 @@ frontend/src/
 │       └── utils/
 │           ├── validateToken.ts           # JWT validation
 │           └── redirectAfterLogin.ts      # Post-login navigation
+│
+│   └── teams/                             # NEW: Team Management
+│       ├── components/
+│       │   ├── TeamsTab.tsx               # Teams settings tab
+│       │   ├── TeamMemberList.tsx         # List team members
+│       │   ├── TeamMemberRow.tsx          # Individual member row
+│       │   ├── InvitationList.tsx         # Active invitations list
+│       │   ├── InvitationRow.tsx          # Individual invitation row
+│       │   ├── CreateInviteModal.tsx      # Create new invite modal
+│       │   └── RoleSelect.tsx             # Role selector dropdown
+│       │
+│       ├── hooks/
+│       │   ├── useTeamMembers.ts          # Fetch team members
+│       │   ├── useInvitations.ts          # Manage invitations (CRUD)
+│       │   └── useUpdateMemberRole.ts     # Update member role
+│       │
+│       └── types/
+│           └── teams.types.ts             # Team-related types
 │
 ├── lib/
 │   └── api.ts                             # Base API client configuration
@@ -1323,6 +1348,1031 @@ The frontend auth implementation is complete when:
 - [ ] Mobile responsive design
 - [ ] Accessibility requirements met
 - [ ] Test coverage >80%
+
+---
+
+## Multi-Tenant Registration Flows
+
+### Registration Modes
+
+The registration page handles two distinct flows based on URL parameters:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Registration Page                         │
+│                   /register?invite=TOKEN                     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              │                               │
+    ┌─────────▼─────────┐         ┌──────────▼──────────┐
+    │  Has Invite Token │         │  No Invite Token    │
+    │  ?invite=abc123   │         │  (Create New Org)   │
+    └─────────┬─────────┘         └──────────┬──────────┘
+              │                               │
+    ┌─────────▼─────────┐         ┌──────────▼──────────┐
+    │ Fetch invitation  │         │ Show org name field │
+    │ GET /invitations/ │         │ User becomes owner  │
+    │     :token        │         │                     │
+    └─────────┬─────────┘         └──────────┬──────────┘
+              │                               │
+    ┌─────────▼─────────┐         ┌──────────▼──────────┐
+    │ Show "Join X Org" │         │ POST /register      │
+    │ Role: member/etc  │         │ {organizationName}  │
+    └─────────┬─────────┘         └──────────┬──────────┘
+              │                               │
+    ┌─────────▼─────────┐                     │
+    │ POST /register    │                     │
+    │ {invitationToken} │                     │
+    └─────────┬─────────┘                     │
+              │                               │
+              └───────────────┬───────────────┘
+                              │
+                    ┌─────────▼─────────┐
+                    │  Logged In User   │
+                    │  Redirect to /    │
+                    └───────────────────┘
+```
+
+### RegisterPage Component
+
+**Location:** `src/features/auth/components/RegisterPage.tsx`
+
+```tsx
+export const RegisterPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('invite');
+
+  // Fetch invitation details if token present
+  const { data: invitation, isLoading: inviteLoading, error: inviteError } = useInvitation(inviteToken);
+  const { register, isLoading, error } = useRegister();
+  const navigate = useNavigate();
+
+  // Loading invitation
+  if (inviteToken && inviteLoading) {
+    return <LoadingSpinner message="Loading invitation..." />;
+  }
+
+  // Invalid/expired invitation
+  if (inviteToken && (inviteError || !invitation?.isValid)) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card glass">
+          <div className="auth-error">
+            <h2>Invalid Invitation</h2>
+            <p>{inviteError?.message || 'This invitation has expired or is no longer valid.'}</p>
+            <Link to="/login" className="btn-primary">Back to Login</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const handleSubmit = async (data: RegisterFormData) => {
+    await register({
+      ...data,
+      invitationToken: inviteToken || undefined,
+    });
+    navigate('/');
+  };
+
+  return (
+    <div className="auth-page">
+      <div className="auth-card glass">
+        <img src="/logos/painchain.png" alt="PainChain" className="auth-logo" />
+
+        {invitation ? (
+          // Joining existing org
+          <>
+            <h1>Join {invitation.tenant.name}</h1>
+            <p className="auth-subtitle">
+              You've been invited to join as <span className="role-badge">{invitation.role}</span>
+            </p>
+          </>
+        ) : (
+          // Creating new org
+          <>
+            <h1>Create Your Organization</h1>
+            <p className="auth-subtitle">Start tracking changes across your infrastructure</p>
+          </>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Email</label>
+            <input type="email" name="email" required />
+          </div>
+
+          <div className="form-group">
+            <label>Password</label>
+            <input type="password" name="password" minLength={12} required />
+          </div>
+
+          {!invitation && (
+            <div className="form-group">
+              <label>Organization Name</label>
+              <input type="text" name="organizationName" required />
+            </div>
+          )}
+
+          <button type="submit" className="btn-primary btn-full" disabled={isLoading}>
+            {isLoading ? 'Creating Account...' : invitation ? `Join ${invitation.tenant.name}` : 'Create Organization'}
+          </button>
+        </form>
+
+        <div className="auth-footer">
+          Already have an account? <Link to="/login">Sign in</Link>
+        </div>
+      </div>
+    </div>
+  );
+};
+```
+
+### Invitation Hook
+
+**Location:** `src/features/auth/hooks/useInvitation.ts`
+
+```typescript
+export const useInvitation = (token: string | null) => {
+  const [data, setData] = useState<InvitationDetails | null>(null);
+  const [isLoading, setIsLoading] = useState(!!token);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchInvitation = async () => {
+      try {
+        const response = await fetch(`${API_URL}/auth/invitations/${token}`);
+        if (!response.ok) throw new Error('Invalid invitation');
+        const invitation = await response.json();
+        setData(invitation);
+      } catch (err) {
+        setError(err as Error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchInvitation();
+  }, [token]);
+
+  return { data, isLoading, error };
+};
+
+interface InvitationDetails {
+  token: string;
+  tenant: { id: string; name: string; slug: string };
+  role: string;
+  expiresAt: string;
+  isValid: boolean;
+}
+```
+
+---
+
+## Teams Management Tab
+
+### Overview
+
+The Teams tab in Settings allows owners and admins to:
+- View all team members
+- Change member roles
+- Create invitation links
+- Copy/revoke invitation links
+- Remove team members (owners only)
+
+### Location in Settings
+
+Add "Team" tab to existing Integrations/Settings page sidebar:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Settings                                                    │
+├─────────────┬───────────────────────────────────────────────┤
+│             │                                                │
+│  Sidebar    │  Main Content                                  │
+│             │                                                │
+│  ┌────────┐ │  ┌──────────────────────────────────────────┐ │
+│  │Integra-│ │  │  Team Members                             │ │
+│  │tions   │ │  │                                           │ │
+│  └────────┘ │  │  [Invite Team Member]                     │ │
+│             │  │                                           │ │
+│  ┌────────┐ │  │  ┌─────────────────────────────────────┐ │ │
+│  │ Tags   │ │  │  │ alice@acme.com          Owner   ▼  │ │ │
+│  └────────┘ │  │  └─────────────────────────────────────┘ │ │
+│             │  │  ┌─────────────────────────────────────┐ │ │
+│  ┌────────┐ │  │  │ bob@acme.com            Admin   ▼  │ │ │
+│  │ Team ◀─┼─┼──│  └─────────────────────────────────────┘ │ │
+│  └────────┘ │  │  ┌─────────────────────────────────────┐ │ │
+│             │  │  │ carol@acme.com          Member  ▼  │ │ │
+│             │  │  └─────────────────────────────────────┘ │ │
+│             │  │                                           │ │
+│             │  │  ─────────────────────────────────────── │ │
+│             │  │                                           │ │
+│             │  │  Active Invitations                       │ │
+│             │  │                                           │ │
+│             │  │  ┌─────────────────────────────────────┐ │ │
+│             │  │  │ member │ Exp: Jan 14 │ 0/5 │ [Copy] │ │ │
+│             │  │  └─────────────────────────────────────┘ │ │
+│             │  │                                           │ │
+│             │  └──────────────────────────────────────────┘ │
+└─────────────┴───────────────────────────────────────────────┘
+```
+
+### TeamsTab Component
+
+**Location:** `src/features/teams/components/TeamsTab.tsx`
+
+```tsx
+export const TeamsTab: React.FC = () => {
+  const { user } = useAuth();
+  const { data: members, isLoading: membersLoading } = useTeamMembers();
+  const { data: invitations, isLoading: invitesLoading, refetch: refetchInvites } = useInvitations();
+  const [showInviteModal, setShowInviteModal] = useState(false);
+
+  const canManageTeam = ['owner', 'admin'].includes(user?.role || '');
+
+  return (
+    <div className="teams-tab">
+      {/* Header */}
+      <div className="teams-header">
+        <div>
+          <h2>Team Members</h2>
+          <p className="text-muted">{members?.length || 0} members in {user?.tenant.name}</p>
+        </div>
+        {canManageTeam && (
+          <button className="btn-primary" onClick={() => setShowInviteModal(true)}>
+            Invite Team Member
+          </button>
+        )}
+      </div>
+
+      {/* Member List */}
+      <div className="team-member-list">
+        {membersLoading ? (
+          <LoadingSpinner />
+        ) : (
+          members?.map((member) => (
+            <TeamMemberRow
+              key={member.id}
+              member={member}
+              currentUser={user}
+              canManage={canManageTeam}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Invitations Section (only for owners/admins) */}
+      {canManageTeam && (
+        <>
+          <div className="teams-divider" />
+          <div className="teams-header">
+            <div>
+              <h2>Active Invitations</h2>
+              <p className="text-muted">Share links to invite new team members</p>
+            </div>
+          </div>
+
+          <div className="invitation-list">
+            {invitesLoading ? (
+              <LoadingSpinner />
+            ) : invitations?.length === 0 ? (
+              <p className="empty-state">No active invitations</p>
+            ) : (
+              invitations?.map((invite) => (
+                <InvitationRow
+                  key={invite.id}
+                  invitation={invite}
+                  onRevoke={refetchInvites}
+                />
+              ))
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Create Invite Modal */}
+      {showInviteModal && (
+        <CreateInviteModal
+          onClose={() => setShowInviteModal(false)}
+          onCreated={() => {
+            refetchInvites();
+            setShowInviteModal(false);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+```
+
+### TeamMemberRow Component
+
+```tsx
+export const TeamMemberRow: React.FC<Props> = ({ member, currentUser, canManage }) => {
+  const { updateRole, isLoading } = useUpdateMemberRole();
+  const isCurrentUser = member.id === currentUser?.id;
+  const isOwner = member.role === 'owner';
+
+  return (
+    <div className="team-member-row">
+      <div className="member-info">
+        <div className="member-avatar">
+          {member.avatarUrl ? (
+            <img src={member.avatarUrl} alt={member.displayName} />
+          ) : (
+            <span>{member.displayName?.charAt(0).toUpperCase()}</span>
+          )}
+        </div>
+        <div className="member-details">
+          <span className="member-name">
+            {member.displayName}
+            {isCurrentUser && <span className="you-badge">(you)</span>}
+          </span>
+          <span className="member-email">{member.email}</span>
+        </div>
+      </div>
+
+      <div className="member-role">
+        {canManage && !isOwner && !isCurrentUser ? (
+          <RoleSelect
+            value={member.role}
+            onChange={(newRole) => updateRole(member.id, newRole)}
+            disabled={isLoading}
+          />
+        ) : (
+          <span className={`role-badge role-${member.role}`}>
+            {member.role}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+```
+
+### InvitationRow Component
+
+```tsx
+export const InvitationRow: React.FC<Props> = ({ invitation, onRevoke }) => {
+  const { revokeInvitation, isLoading } = useRevokeInvitation();
+  const [copied, setCopied] = useState(false);
+
+  const inviteUrl = `${window.location.origin}/register?invite=${invitation.token}`;
+  const isExpired = new Date(invitation.expiresAt) < new Date();
+  const isExhausted = invitation.useCount >= invitation.maxUses;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(inviteUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleRevoke = async () => {
+    await revokeInvitation(invitation.token);
+    onRevoke();
+  };
+
+  return (
+    <div className={`invitation-row ${isExpired || isExhausted ? 'expired' : ''}`}>
+      <div className="invite-info">
+        <span className={`role-badge role-${invitation.role}`}>{invitation.role}</span>
+        <span className="invite-expiry">
+          Expires {formatDate(invitation.expiresAt)}
+        </span>
+        <span className="invite-uses">
+          {invitation.useCount} / {invitation.maxUses} uses
+        </span>
+      </div>
+
+      <div className="invite-actions">
+        <button
+          className="btn-secondary btn-sm"
+          onClick={handleCopy}
+          disabled={isExpired || isExhausted}
+        >
+          {copied ? 'Copied!' : 'Copy Link'}
+        </button>
+        <button
+          className="btn-delete btn-sm"
+          onClick={handleRevoke}
+          disabled={isLoading}
+        >
+          Revoke
+        </button>
+      </div>
+    </div>
+  );
+};
+```
+
+### CreateInviteModal Component
+
+```tsx
+export const CreateInviteModal: React.FC<Props> = ({ onClose, onCreated }) => {
+  const { createInvitation, isLoading } = useCreateInvitation();
+  const [role, setRole] = useState('member');
+  const [expiresInDays, setExpiresInDays] = useState(7);
+  const [maxUses, setMaxUses] = useState(1);
+  const [createdUrl, setCreatedUrl] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    const result = await createInvitation({ role, expiresInDays, maxUses });
+    setCreatedUrl(result.inviteUrl);
+  };
+
+  const handleCopyAndClose = async () => {
+    if (createdUrl) {
+      await navigator.clipboard.writeText(createdUrl);
+    }
+    onCreated();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal glass" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Create Invitation Link</h2>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+
+        {createdUrl ? (
+          // Success state - show copyable link
+          <div className="modal-body">
+            <p>Invitation created! Share this link:</p>
+            <div className="invite-url-box">
+              <input type="text" value={createdUrl} readOnly />
+            </div>
+            <button className="btn-primary btn-full" onClick={handleCopyAndClose}>
+              Copy Link & Close
+            </button>
+          </div>
+        ) : (
+          // Creation form
+          <div className="modal-body">
+            <div className="form-group">
+              <label>Role</label>
+              <RoleSelect value={role} onChange={setRole} excludeOwner />
+            </div>
+
+            <div className="form-group">
+              <label>Expires In</label>
+              <select value={expiresInDays} onChange={(e) => setExpiresInDays(Number(e.target.value))}>
+                <option value={1}>1 day</option>
+                <option value={7}>7 days</option>
+                <option value={14}>14 days</option>
+                <option value={30}>30 days</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Max Uses</label>
+              <select value={maxUses} onChange={(e) => setMaxUses(Number(e.target.value))}>
+                <option value={1}>Single use</option>
+                <option value={5}>5 uses</option>
+                <option value={10}>10 uses</option>
+                <option value={100}>Unlimited (100)</option>
+              </select>
+            </div>
+
+            <button className="btn-primary btn-full" onClick={handleCreate} disabled={isLoading}>
+              {isLoading ? 'Creating...' : 'Create Invitation'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+```
+
+### API Hooks
+
+```typescript
+// useTeamMembers.ts
+export const useTeamMembers = () => {
+  // GET /api/users (returns users in current tenant)
+  // Requires x-tenant-id header (from auth context)
+};
+
+// useInvitations.ts
+export const useInvitations = () => {
+  // GET /api/auth/invitations
+};
+
+// useCreateInvitation.ts
+export const useCreateInvitation = () => {
+  // POST /api/auth/invitations
+  // Body: { role, expiresInDays, maxUses }
+};
+
+// useRevokeInvitation.ts
+export const useRevokeInvitation = () => {
+  // DELETE /api/auth/invitations/:token
+};
+
+// useUpdateMemberRole.ts
+export const useUpdateMemberRole = () => {
+  // PUT /api/users/:id/role (needs backend endpoint)
+  // Body: { role }
+};
+```
+
+---
+
+## On-Brand Design System
+
+### Design Tokens
+
+The login page and team management UI must use these exact design tokens:
+
+```css
+/* Colors */
+--bg-primary: #0f1419;           /* Page background */
+--bg-surface: #1a1f2e;           /* Cards/containers */
+--bg-surface-light: #1e2433;     /* Hover states */
+--border: #2a3142;               /* Default borders */
+--border-light: #3a4152;         /* Lighter borders */
+--accent: #00E8A0;               /* Primary action color */
+--accent-hover: #00ffb3;         /* Hover state */
+--error: #f85149;                /* Error states */
+--text-primary: #e1e4e8;         /* Main text */
+--text-secondary: #c9d1d9;       /* Secondary text */
+--text-muted: #808080;           /* Muted text */
+```
+
+### LoginPage Design
+
+**Location:** `src/features/auth/components/LoginPage.tsx`
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                     glass card                       │   │
+│  │                                                      │   │
+│  │        [PainChain Logo - centered]                  │   │
+│  │                                                      │   │
+│  │        Sign in to PainChain                         │   │
+│  │        Track changes across your infrastructure     │   │
+│  │                                                      │   │
+│  │   ┌──────────────────────────────────────────────┐  │   │
+│  │   │  Email                                        │  │   │
+│  │   │  ┌────────────────────────────────────────┐  │  │   │
+│  │   │  │ email@example.com                      │  │  │   │
+│  │   │  └────────────────────────────────────────┘  │  │   │
+│  │   │                                               │  │   │
+│  │   │  Password                                     │  │   │
+│  │   │  ┌────────────────────────────────────────┐  │  │   │
+│  │   │  │ ••••••••••••                       👁  │  │  │   │
+│  │   │  └────────────────────────────────────────┘  │  │   │
+│  │   │                                               │  │   │
+│  │   │  ┌────────────────────────────────────────┐  │  │   │
+│  │   │  │           Sign In (accent bg)          │  │  │   │
+│  │   │  └────────────────────────────────────────┘  │  │   │
+│  │   └──────────────────────────────────────────────┘  │   │
+│  │                                                      │   │
+│  │   ──────────────── or continue with ─────────────   │   │
+│  │                                                      │   │
+│  │   ┌──────────┐  ┌──────────┐  ┌──────────┐         │   │
+│  │   │ [G] Google│  │ [O] Okta │  │ [A] Azure│         │   │
+│  │   └──────────┘  └──────────┘  └──────────┘         │   │
+│  │                                                      │   │
+│  │   Don't have an account? Sign up                    │   │
+│  │                                                      │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### CSS Classes
+
+```css
+/* Auth Page Layout */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f1419;
+  padding: 20px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 40px;
+  border-radius: 12px;
+  background: rgba(26, 31, 46, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid #2a3142;
+}
+
+.auth-logo {
+  height: 48px;
+  margin: 0 auto 24px;
+  display: block;
+}
+
+.auth-card h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #e1e4e8;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.auth-subtitle {
+  color: #808080;
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+/* Form Styles */
+.auth-card .form-group {
+  margin-bottom: 20px;
+}
+
+.auth-card label {
+  display: block;
+  font-size: 0.875rem;
+  color: #c9d1d9;
+  margin-bottom: 6px;
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 12px 14px;
+  background: #0f1419;
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  color: #e1e4e8;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+
+.auth-card input:focus {
+  outline: none;
+  border-color: #00E8A0;
+}
+
+.auth-card input::placeholder {
+  color: #606060;
+}
+
+/* Primary Button */
+.btn-full {
+  width: 100%;
+  padding: 14px;
+  font-size: 1rem;
+}
+
+/* OIDC Divider */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 28px 0;
+  color: #606060;
+  font-size: 0.85rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #2a3142;
+}
+
+.auth-divider span {
+  padding: 0 16px;
+}
+
+/* OIDC Provider Cards */
+.oidc-providers {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.oidc-card {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: transparent;
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  color: #c9d1d9;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.oidc-card:hover {
+  border-color: #00E8A0;
+  background: rgba(0, 232, 160, 0.05);
+}
+
+.oidc-card img {
+  height: 20px;
+  width: 20px;
+}
+
+/* Auth Footer */
+.auth-footer {
+  text-align: center;
+  margin-top: 24px;
+  color: #808080;
+  font-size: 0.875rem;
+}
+
+.auth-footer a {
+  color: #00E8A0;
+  text-decoration: none;
+}
+
+.auth-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Role Badges */
+.role-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.role-owner {
+  background: rgba(159, 122, 234, 0.2);
+  color: #9f7aea;
+}
+
+.role-admin {
+  background: rgba(0, 232, 160, 0.2);
+  color: #00E8A0;
+}
+
+.role-member {
+  background: rgba(201, 209, 217, 0.2);
+  color: #c9d1d9;
+}
+
+.role-viewer {
+  background: rgba(128, 128, 128, 0.2);
+  color: #808080;
+}
+```
+
+### Teams Tab CSS
+
+```css
+/* Teams Tab */
+.teams-tab {
+  padding: 24px;
+}
+
+.teams-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.teams-header h2 {
+  font-size: 1.25rem;
+  color: #e1e4e8;
+  margin-bottom: 4px;
+}
+
+.teams-header .text-muted {
+  color: #808080;
+  font-size: 0.875rem;
+}
+
+.teams-divider {
+  height: 1px;
+  background: #2a3142;
+  margin: 32px 0;
+}
+
+/* Team Member Row */
+.team-member-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: #1a1f2e;
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: border-color 0.2s;
+}
+
+.team-member-row:hover {
+  border-color: #3a4152;
+}
+
+.member-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.member-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #00E8A0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #0f1419;
+}
+
+.member-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.member-name {
+  font-weight: 500;
+  color: #e1e4e8;
+}
+
+.member-email {
+  color: #808080;
+  font-size: 0.875rem;
+}
+
+.you-badge {
+  color: #00E8A0;
+  font-size: 0.75rem;
+  margin-left: 8px;
+}
+
+/* Invitation Row */
+.invitation-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #1a1f2e;
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.invitation-row.expired {
+  opacity: 0.5;
+}
+
+.invite-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.invite-expiry,
+.invite-uses {
+  color: #808080;
+  font-size: 0.875rem;
+}
+
+.invite-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  width: 100%;
+  max-width: 440px;
+  background: #1a1f2e;
+  border: 1px solid #2a3142;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #2a3142;
+}
+
+.modal-header h2 {
+  font-size: 1.1rem;
+  color: #e1e4e8;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: #808080;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.invite-url-box {
+  margin: 16px 0;
+}
+
+.invite-url-box input {
+  width: 100%;
+  padding: 12px;
+  background: #0f1419;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+  color: #e1e4e8;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+```
+
+---
+
+## Backend Endpoints for Teams
+
+**Required for team management (may need implementation):**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/users` | List users in current tenant |
+| PUT | `/api/users/:id/role` | Update user role (owner/admin only) |
+| DELETE | `/api/users/:id` | Remove user from tenant (owner only) |
+
+**Already implemented:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/auth/invitations` | List tenant invitations |
+| POST | `/api/auth/invitations` | Create invitation |
+| GET | `/api/auth/invitations/:token` | Get invitation details |
+| DELETE | `/api/auth/invitations/:token` | Revoke invitation |
+
+---
+
+## Updated Success Criteria
+
+The frontend auth implementation is complete when:
+
+- [ ] **Login Page (On-Brand)**
+  - [ ] Glassmorphic card design
+  - [ ] PainChain logo
+  - [ ] Email/password form
+  - [ ] OIDC provider buttons
+  - [ ] Sign up link
+  - [ ] Error handling
+
+- [ ] **Registration Page (Multi-Tenant)**
+  - [ ] Detects `?invite=TOKEN` parameter
+  - [ ] Fetches and validates invitation
+  - [ ] Shows "Join [Org]" for invitations
+  - [ ] Shows "Create Organization" otherwise
+  - [ ] Handles expired/invalid invitations
+
+- [ ] **Teams Management Tab**
+  - [ ] Listed in Settings sidebar
+  - [ ] Shows all team members
+  - [ ] Role badges with proper colors
+  - [ ] Role change dropdown (owner/admin)
+  - [ ] Create invitation modal
+  - [ ] Copy invite link functionality
+  - [ ] Revoke invitation button
+  - [ ] Permission-based visibility
+
+- [ ] **Protected Routes**
+  - [ ] Redirect unauthenticated users
+  - [ ] Role-based route guards
+  - [ ] Preserve intended destination
 
 ---
 

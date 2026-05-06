@@ -1,0 +1,192 @@
+{
+  "schemaVersion": "anchorstack.audit.v2",
+  "generatedAt": "2026-05-06T00:00:00Z",
+  "auditor": "AnchorStack",
+  "repo": {
+    "name": "PainChain",
+    "branch": "checkout/start-from-scratch",
+    "commitSha": "d10704358375351525708e74c42c69f0684eabde",
+    "remoteUrl": "git@github.com:mlopstapus/PainChain.git"
+  },
+  "audit": {
+    "date": "2026-05-06",
+    "overallScore": 2.6,
+    "status": "Fail",
+    "statusClass": "fail",
+    "verdict": "Unsafe to operate",
+    "verdictLabel": "Fail · Unsafe to operate",
+    "gaugeArcLength": 65,
+    "gaugeArcTotal": 251,
+    "executiveSummary": "PainChain v2 is a well-conceived change-aggregation platform with a sound architectural design and a functioning implementation — but it is not safe to expose to any external network in its current state. Third-party API credentials stored for connected services are reachable by any unauthenticated caller with network access to the application port. Production credentials have been present in version control since initial commit with no evidence of rotation. The database has no backup mechanism, meaning a hardware failure or a destructive schema change applied automatically at startup would produce permanent, unrecoverable data loss. No automated tests or CI gates exist for any v2 code. Remediation requires closing four to six critical security and data integrity gaps before any real-user deployment, followed by establishing the delivery infrastructure — tests, CI, branch protection, and versioned migrations — needed to evolve the system safely."
+  },
+  "findingCounts": {
+    "critical": 16,
+    "high": 30,
+    "medium": 26,
+    "low": 4,
+    "criticalOrHigh": 46,
+    "total": 76
+  },
+  "scores": [
+    {
+      "key": "security",
+      "area": "Security",
+      "score": 2,
+      "scoreDisplay": "2/10",
+      "weight": 1.5,
+      "weightDisplay": "×1.5",
+      "barWidth": "20%",
+      "status": "Fail",
+      "statusClass": "fail",
+      "summary": "The application's auth design is technically sophisticated — bcrypt password hashing, OIDC state encryption, session revocation, and multi-tenant guards are all present — but the guards are bypassed on all but one controller. Every data endpoint is unauthenticated. Third-party API credentials, user data, and tenant configurations are freely readable and writable by any unauthenticated HTTP client. Production credentials are committed to version control. No rate limiting, input validation, security headers, or vulnerability scanning exists."
+    },
+    {
+      "key": "architecture",
+      "area": "Architecture",
+      "score": 4,
+      "scoreDisplay": "4/10",
+      "weight": 1.0,
+      "weightDisplay": "×1.0",
+      "barWidth": "40%",
+      "status": "Fail",
+      "statusClass": "fail",
+      "summary": "The connector-based architecture is well-designed for the product's use case. The critical weakness is event delivery: connectors push to the backend via synchronous HTTP with no queue, no retry mechanism, and no durability guarantee — events are silently lost whenever the backend is unavailable. Database schema changes are applied destructively at container startup with no migration history, making rollback impossible. Every authenticated request makes two database round-trips with no caching, creating a scaling constraint on the primary auth path."
+    },
+    {
+      "key": "data",
+      "area": "Data",
+      "score": 3,
+      "scoreDisplay": "3/10",
+      "weight": 1.5,
+      "weightDisplay": "×1.5",
+      "barWidth": "30%",
+      "status": "Fail",
+      "statusClass": "fail",
+      "summary": "The Prisma schema is coherent and the event deduplication design is correct. Everything else about the data layer's operational posture is critically weak. API credentials for connected services are stored as plaintext in the database. Authentication provider secrets are stored in an unencrypted column. No database backups exist. Schema changes are applied via a tool that can silently drop columns and tables in production with no migration history, no rollback path, and no approval gate. Multi-step registration and login flows are not wrapped in transactions, allowing partial writes on failure."
+    },
+    {
+      "key": "aiEngineering",
+      "area": "AI Engineering",
+      "score": 3,
+      "scoreDisplay": "3/10",
+      "weight": 1.0,
+      "weightDisplay": "×1.0",
+      "barWidth": "30%",
+      "status": "Fail",
+      "statusClass": "fail",
+      "summary": "Claude Code is the primary development tool and has produced a well-structured implementation from detailed design documents. The AI workflow has a critical safety failure: a real authentication token and database password are hardcoded in a tracked tool-settings file, compounding the existing credential exposure. The only agent context file is a generic eight-rule document that gives no guidance on the codebase's most important security invariants — tenant isolation and safe use of the public-access decorator. Large AI-assisted feature commits arrive without tests, CI validation, or a gate to catch temporary bypasses before they become permanent."
+    },
+    {
+      "key": "infrastructure",
+      "area": "Infrastructure",
+      "score": 2,
+      "scoreDisplay": "2/10",
+      "weight": 1.0,
+      "weightDisplay": "×1.0",
+      "barWidth": "20%",
+      "status": "Fail",
+      "statusClass": "fail",
+      "summary": "The Docker Compose self-hosted model is appropriate for this product. The execution is not production-ready: all four CI/CD workflows fail because they reference the previous architecture's file paths. Connector containers mount host source directories in the production Compose file — a development pattern that bypasses the built container image. The database port is exposed to the host network. All containers run as root. No staging environment, TLS configuration, image scanning, or backup mechanism exists."
+    },
+    {
+      "key": "observability",
+      "area": "Observability",
+      "score": 1,
+      "scoreDisplay": "1/10",
+      "weight": 1.0,
+      "weightDisplay": "×1.0",
+      "barWidth": "10%",
+      "status": "Fail",
+      "statusClass": "fail",
+      "summary": "There is no production observability. No error tracking, uptime monitoring, metrics, dashboards, or alerts are configured. Logging is unstructured console output with no correlation IDs, no log aggregation destination, and no consistent format across services. Connector failures — including the silent stop of event ingestion that would leave the product's core timeline stale — produce no alert and leave no searchable trace. Failed authentication attempts are not logged. The team would learn about any production failure only from a user complaint."
+    },
+    {
+      "key": "codeQuality",
+      "area": "Code Quality",
+      "score": 3,
+      "scoreDisplay": "3/10",
+      "weight": 1.0,
+      "weightDisplay": "×1.0",
+      "barWidth": "30%",
+      "status": "Fail",
+      "statusClass": "fail",
+      "summary": "The auth subsystem is thoughtfully structured but is functionally bypassed on all data endpoints. Input validation decorators exist on data transfer objects but the global validation pipe that executes them is never registered, making every decorator inert. TypeScript strict mode is disabled in the backend, allowing null and untyped values to flow silently through all service and database code. No application tests exist. Debug-level console output is present in a high-volume production code path. A tenant isolation check accepts a parameter but ignores it in the database query."
+    },
+    {
+      "key": "delivery",
+      "area": "Delivery",
+      "score": 2,
+      "scoreDisplay": "2/10",
+      "weight": 1.0,
+      "weightDisplay": "×1.0",
+      "barWidth": "20%",
+      "status": "Fail",
+      "statusClass": "fail",
+      "summary": "The v1 delivery process showed genuine maturity — feature branches, pull requests, versioned Helm releases, and a documented release checklist. V2 has abandoned all of it. Every line of v2 code, including the complete authentication and multi-tenant systems, was committed without CI validation, PR review, or automated tests. All four CI/CD workflows are broken. No migration gate exists before schema changes reach the database. The release process documentation describes the v1 architecture and is not usable for v2."
+    },
+    {
+      "key": "documentation",
+      "area": "Documentation",
+      "score": 3,
+      "scoreDisplay": "3/10",
+      "weight": 1.0,
+      "weightDisplay": "×1.0",
+      "barWidth": "30%",
+      "status": "Fail",
+      "statusClass": "fail",
+      "summary": "There is significant documentation volume — detailed connector guides, an OIDC configuration reference, and extensive design plans — but the documents visible to new contributors and AI agents are inaccurate. The main README describes the project as being in planning with the quick start marked 'coming soon,' while the system is functional. Three large implementation plan documents describe unstarted work that has been complete for months. The AI agent context file is generic and omits the codebase's most critical invariants. No operational runbooks exist for any common maintenance task."
+    }
+  ],
+  "topRisks": [
+    {
+      "rank": 1,
+      "rankDisplay": "01",
+      "id": "SEC-001",
+      "severity": "Critical",
+      "severityClass": "critical",
+      "area": "Security",
+      "title": "All data endpoints operate without authentication — third-party API credentials reachable by any network caller",
+      "teaser": "The application's data endpoints — including the endpoint that returns third-party API credentials for all connected services — accept requests from any caller without authentication. Any process with network access to the application port can read, modify, or delete sensitive configuration data including live API tokens for external services. The auth system was built correctly but is bypassed on every data surface."
+    },
+    {
+      "rank": 2,
+      "rankDisplay": "02",
+      "id": "DAT-001",
+      "severity": "Critical",
+      "severityClass": "critical",
+      "area": "Data",
+      "title": "Third-party API credentials stored unencrypted in the database",
+      "teaser": "Credentials for all connected external services are stored as plaintext in a database column. Any party who can read the database — through direct access, a future backup exposure, or the unauthenticated API endpoint — retrieves these live credentials in full without any additional privilege. Rotation of compromised credentials requires identifying and updating every affected integration record manually."
+    },
+    {
+      "rank": 3,
+      "rankDisplay": "03",
+      "id": "SEC-002",
+      "severity": "Critical",
+      "severityClass": "critical",
+      "area": "Security",
+      "title": "Production credentials committed to version control and present in full repository history",
+      "teaser": "The database password and the key used to sign all authentication tokens are present in a tracked file and in the full commit history of every clone of the repository. A separate tool-settings file — also tracked — contains a live authentication token embedded in a configuration field. Neither credential shows evidence of rotation since initial commit."
+    },
+    {
+      "rank": 4,
+      "rankDisplay": "04",
+      "id": "DAT-002",
+      "severity": "Critical",
+      "severityClass": "critical",
+      "area": "Data",
+      "title": "No database backup mechanism — all product data unrecoverable on failure",
+      "teaser": "The database runs on a local volume with no backup schedule, no archival, and no tested restore procedure. A hardware failure, accidental container deletion, or a destructive schema migration automatically applied at startup would produce permanent and total loss of all stored event data — the core product deliverable. No recovery runbook exists."
+    },
+    {
+      "rank": 5,
+      "rankDisplay": "05",
+      "id": "DEL-001",
+      "severity": "Critical",
+      "severityClass": "critical",
+      "area": "Delivery",
+      "title": "All v2 production code committed without automated verification or human review",
+      "teaser": "The complete authentication system, multi-tenant isolation model, and API surface were committed in large batches directly to a working branch with no pull request review, no CI validation, and no automated tests. No automated process has verified any behavior of the v2 codebase. Temporary security bypasses introduced during development have no tracking mechanism to ensure they are resolved before deployment."
+    }
+  ]
+}

@@ -123,16 +123,21 @@ export class AuthService {
     }
     // CASE 2: User provides organization name → Create new tenant
     else if (dto.organizationName) {
-      const slug = this.generateSlug(dto.organizationName);
-
-      // Check if slug already exists
-      const existingTenant = await this.prisma.tenant.findUnique({
-        where: { slug },
+      // Check if an organization with this name already exists (case-insensitive)
+      const existingTenantByName = await this.prisma.tenant.findFirst({
+        where: {
+          name: {
+            equals: dto.organizationName,
+            mode: 'insensitive',
+          },
+        },
       });
 
-      if (existingTenant) {
+      if (existingTenantByName) {
         throw new ConflictException('An organization with this name already exists');
       }
+
+      const slug = this.generateSlug(dto.organizationName);
 
       // Extract domain from email for OIDC auto-join
       const domain = dto.email.includes('@') ? dto.email.split('@')[1] : null;
@@ -401,5 +406,126 @@ export class AuthService {
     }
 
     await this.sessionService.revokeSession(session.token);
+  }
+
+  /**
+   * Get all users in a tenant
+   * @param tenantId - Tenant ID
+   * @returns Array of users in the tenant
+   */
+  async getTenantUsers(tenantId: string) {
+    const users = await this.prisma.user.findMany({
+      where: { tenantId, isActive: true },
+      orderBy: [
+        { role: 'asc' }, // owners first, then admins, members, viewers
+        { createdAt: 'asc' },
+      ],
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        firstName: true,
+        lastName: true,
+        avatarUrl: true,
+        role: true,
+        createdAt: true,
+        lastLoginAt: true,
+      },
+    });
+
+    return users;
+  }
+
+  /**
+   * Update a user's role (owners/admins only)
+   * @param tenantId - Tenant ID
+   * @param userId - User ID to update
+   * @param newRole - New role to assign
+   * @param currentUserRole - Role of the user making the change
+   */
+  async updateUserRole(tenantId: string, userId: string, newRole: string, currentUserRole: string) {
+    // Validate role
+    const validRoles = ['admin', 'member', 'viewer'];
+    if (!validRoles.includes(newRole)) {
+      throw new BadRequestException(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
+    }
+
+    // Only owners can promote to admin
+    if (newRole === 'admin' && currentUserRole !== 'owner') {
+      throw new BadRequestException('Only owners can promote users to admin');
+    }
+
+    // Find user and verify they belong to the same tenant
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || user.tenantId !== tenantId) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Cannot change owner's role
+    if (user.role === 'owner') {
+      throw new BadRequestException('Cannot change owner role');
+    }
+
+    // Update role
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: { role: newRole },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        firstName: true,
+        lastName: true,
+        avatarUrl: true,
+        role: true,
+        createdAt: true,
+        lastLoginAt: true,
+      },
+    });
+
+    this.logger.log(`User role updated: ${user.email} → ${newRole} (by ${currentUserRole})`);
+
+    return updatedUser;
+  }
+
+  /**
+   * Remove a user from tenant (owners only)
+   * @param tenantId - Tenant ID
+   * @param userId - User ID to remove
+   * @param currentUserId - ID of the user making the request
+   */
+  async removeUser(tenantId: string, userId: string, currentUserId: string) {
+    // Cannot remove yourself
+    if (userId === currentUserId) {
+      throw new BadRequestException('Cannot remove yourself');
+    }
+
+    // Find user and verify they belong to the same tenant
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || user.tenantId !== tenantId) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Cannot remove owner
+    if (user.role === 'owner') {
+      throw new BadRequestException('Cannot remove the owner');
+    }
+
+    // Soft delete - mark as inactive
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { isActive: false },
+    });
+
+    // Revoke all sessions
+    await this.sessionService.revokeAllUserSessions(userId);
+
+    this.logger.log(`User removed from tenant: ${user.email}`);
   }
 }

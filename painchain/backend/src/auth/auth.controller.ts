@@ -283,4 +283,53 @@ export class AuthController {
   async revokeInvitation(@Param('token') token: string, @CurrentUser() user: AuthUser) {
     await this.invitationService.revokeInvitation(token, user.userId);
   }
+
+  // ==================== USERS ROUTES ====================
+
+  /**
+   * Get all users in the current tenant
+   * GET /api/auth/users
+   * Headers: Authorization: Bearer <token>
+   */
+  @Get('users')
+  async getTenantUsers(@CurrentUser() user: AuthUser) {
+    return this.authService.getTenantUsers(user.tenantId);
+  }
+
+  /**
+   * Update a user's role (owners/admins only)
+   * PUT /api/auth/users/:userId/role
+   * Headers: Authorization: Bearer <token>
+   * Body: { role: string }
+   */
+  @Post('users/:userId/role')
+  @HttpCode(HttpStatus.OK)
+  async updateUserRole(
+    @Param('userId') userId: string,
+    @Body() dto: { role: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    // Only owners and admins can change roles
+    if (!['owner', 'admin'].includes(user.role)) {
+      throw new NotFoundException('Only owners and admins can change user roles');
+    }
+
+    return this.authService.updateUserRole(user.tenantId, userId, dto.role, user.role);
+  }
+
+  /**
+   * Remove a user from the tenant (owners only)
+   * DELETE /api/auth/users/:userId
+   * Headers: Authorization: Bearer <token>
+   */
+  @Delete('users/:userId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeUser(@Param('userId') userId: string, @CurrentUser() user: AuthUser) {
+    // Only owners can remove users
+    if (user.role !== 'owner') {
+      throw new NotFoundException('Only owners can remove users');
+    }
+
+    await this.authService.removeUser(user.tenantId, userId, user.userId);
+  }
 }

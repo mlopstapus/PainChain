@@ -1,12 +1,39 @@
 // API client wrapper for backend communication
 
+import type {
+  AuthMethods,
+  AuthResponse,
+  LoginCredentials,
+  RegisterData,
+  User,
+  Invitation,
+  InvitationDetails,
+  CreateInvitationData,
+  TeamMember,
+  Session,
+} from '../features/auth/types/auth.types';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+// Token storage
+const TOKEN_KEY = 'painchain_auth_token';
+
+export const tokenStorage = {
+  getToken: (): string | null => localStorage.getItem(TOKEN_KEY),
+  setToken: (token: string): void => localStorage.setItem(TOKEN_KEY, token),
+  removeToken: (): void => localStorage.removeItem(TOKEN_KEY),
+};
 
 class APIClient {
   private baseURL: string;
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
+  }
+
+  private getAuthHeaders(): Record<string, string> {
+    const token = tokenStorage.getToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
   private async request<T>(
@@ -19,13 +46,26 @@ class APIClient {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...this.getAuthHeaders(),
         ...options?.headers,
       },
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`API Error: ${response.status} - ${error}`);
+      // Handle 401 - token expired
+      if (response.status === 401) {
+        tokenStorage.removeToken();
+        // Don't redirect here - let the AuthProvider handle it
+      }
+
+      let errorMessage = `API Error: ${response.status}`;
+      try {
+        const error = await response.json();
+        errorMessage = error.message || errorMessage;
+      } catch {
+        // Response wasn't JSON
+      }
+      throw new Error(errorMessage);
     }
 
     // Handle 204 No Content responses (DELETE operations)
@@ -34,6 +74,94 @@ class APIClient {
     }
 
     return response.json();
+  }
+
+  // ==================== Auth endpoints ====================
+
+  async getAuthMethods(): Promise<AuthMethods> {
+    return this.request('/auth/methods');
+  }
+
+  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+    return this.request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    });
+  }
+
+  async register(data: RegisterData): Promise<AuthResponse> {
+    return this.request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getMe(): Promise<User> {
+    return this.request('/auth/me');
+  }
+
+  async logout(): Promise<void> {
+    return this.request('/auth/logout', {
+      method: 'POST',
+    });
+  }
+
+  async logoutAll(): Promise<void> {
+    return this.request('/auth/logout-all', {
+      method: 'POST',
+    });
+  }
+
+  async getSessions(): Promise<Session[]> {
+    return this.request('/auth/sessions');
+  }
+
+  async revokeSession(sessionId: string): Promise<void> {
+    return this.request(`/auth/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== Invitation endpoints ====================
+
+  async getInvitationDetails(token: string): Promise<InvitationDetails> {
+    return this.request(`/auth/invitations/${token}`);
+  }
+
+  async createInvitation(data: CreateInvitationData): Promise<Invitation> {
+    return this.request('/auth/invitations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listInvitations(): Promise<Invitation[]> {
+    return this.request('/auth/invitations');
+  }
+
+  async revokeInvitation(token: string): Promise<void> {
+    return this.request(`/auth/invitations/${token}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== Team member endpoints ====================
+
+  async getTeamMembers(): Promise<TeamMember[]> {
+    return this.request('/auth/users');
+  }
+
+  async updateMemberRole(userId: string, role: string): Promise<TeamMember> {
+    return this.request(`/auth/users/${userId}/role`, {
+      method: 'POST',
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  async removeMember(userId: string): Promise<void> {
+    return this.request(`/auth/users/${userId}`, {
+      method: 'DELETE',
+    });
   }
 
   // Timeline endpoints

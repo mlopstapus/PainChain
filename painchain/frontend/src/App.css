@@ -95,6 +95,157 @@
   transform: translateY(-1px);
 }
 
+/* User Menu */
+.user-menu-container {
+  position: relative;
+}
+
+.user-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.2s;
+  color: #c9d1d9;
+}
+
+.user-menu-trigger:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #00E8A0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #0f1419;
+  font-size: 0.9rem;
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  min-width: 220px;
+  background: #1a1f2e;
+  border: 1px solid #2a3142;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.user-menu-header {
+  padding: 16px;
+}
+
+.user-menu-name {
+  font-weight: 600;
+  color: #e1e4e8;
+  margin: 0 0 4px 0;
+  font-size: 0.95rem;
+}
+
+.user-menu-email {
+  color: #808080;
+  margin: 0 0 8px 0;
+  font-size: 0.8rem;
+}
+
+.user-menu-divider {
+  height: 1px;
+  background: #2a3142;
+}
+
+.user-menu-org {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-menu-org-label {
+  font-size: 0.7rem;
+  color: #606060;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.user-menu-org-name {
+  font-size: 0.85rem;
+  color: #c9d1d9;
+}
+
+.user-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: #c9d1d9;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: left;
+}
+
+.user-menu-item:hover {
+  background: rgba(248, 81, 73, 0.1);
+  color: #f85149;
+}
+
+.user-menu-item svg {
+  flex-shrink: 0;
+}
+
+/* Role badges (duplicated for navbar context) */
+.role-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.role-owner {
+  background: rgba(159, 122, 234, 0.2);
+  color: #9f7aea;
+}
+
+.role-admin {
+  background: rgba(0, 232, 160, 0.2);
+  color: #00E8A0;
+}
+
+.role-member {
+  background: rgba(201, 209, 217, 0.2);
+  color: #c9d1d9;
+}
+
+.role-viewer {
+  background: rgba(128, 128, 128, 0.2);
+  color: #808080;
+}
+
 /* Content Area */
 .content {
   max-width: 1400px;
